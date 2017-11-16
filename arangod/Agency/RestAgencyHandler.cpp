@@ -302,7 +302,7 @@ RestStatus RestAgencyHandler::handleWrite() {
     Builder body;
     body.openObject();
     body.add("message",
-             VPackValue(std::string("Malformed write query") + e.what()));
+             VPackValue(std::string("Malformed write query ") + e.what()));
     body.close();
     generateResult(rest::ResponseCode::BAD, body.slice());
     return RestStatus::DONE;

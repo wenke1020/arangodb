@@ -152,45 +152,39 @@ std::vector<bool> Store::applyTransactions(query_t const& query) {
   std::vector<bool> success;
 
   if (query->slice().isArray()) {
-    try {
-      for (auto const& i : VPackArrayIterator(query->slice())) {
-        MUTEX_LOCKER(storeLocker, _storeLock);
-        switch (i.length()) {
-        case 1:  // No precondition
+    for (auto const& i : VPackArrayIterator(query->slice())) {
+      MUTEX_LOCKER(storeLocker, _storeLock);
+      switch (i.length()) {
+      case 1:  // No precondition
+        success.push_back(applies(i[0]));
+        break;
+      case 2: // precondition + uuid
+      case 3:
+        if (check(i[1]).successful()) {
           success.push_back(applies(i[0]));
-          break;
-        case 2: // precondition + uuid
-        case 3:
-          if (check(i[1]).successful()) {
-            success.push_back(applies(i[0]));
-          } else {  // precondition failed
-            LOG_TOPIC(TRACE, Logger::AGENCY) << "Precondition failed!";
-            success.push_back(false);
-          }
-          break;
-        default:  // Wrong
-          LOG_TOPIC(ERR, Logger::AGENCY)
-            << "We can only handle log entry with or without precondition! "
-            << " However, We received " << i.toJson();
+        } else {  // precondition failed
+          LOG_TOPIC(TRACE, Logger::AGENCY) << "Precondition failed!";
           success.push_back(false);
-          break;
         }
+        break;
+      default:  // Wrong
+        LOG_TOPIC(ERR, Logger::AGENCY)
+          << "We can only handle log entry with or without precondition! "
+          << " However, We received " << i.toJson();
+        success.push_back(false);
+        break;
       }
+    }
 
-      // Wake up TTL processing
-      {
-        CONDITION_LOCKER(guard, _cv);
-        _cv.signal();
-      }
-
-    } catch (std::exception const& e) {  // Catch any erorrs
-      LOG_TOPIC(ERR, Logger::AGENCY) << __FILE__ << ":" << __LINE__ << " "
-                                     << e.what();
+    // Wake up TTL processing
+    {
+      CONDITION_LOCKER(guard, _cv);
+      _cv.signal();
     }
 
   } else {
-    THROW_ARANGO_EXCEPTION_MESSAGE(30000,
-                                   "Agency request syntax is [[<queries>]]");
+    THROW_ARANGO_EXCEPTION_MESSAGE(
+      30000, "Agency request syntax is [[<queries>]]");
   }
   return success;
 }
@@ -201,38 +195,32 @@ check_ret_t Store::applyTransaction(Slice const& query) {
 
   check_ret_t ret(true);
 
-  try {
-    MUTEX_LOCKER(storeLocker, _storeLock);
-    switch (query.length()) {
-    case 1:  // No precondition
+  MUTEX_LOCKER(storeLocker, _storeLock);
+  switch (query.length()) {
+  case 1:  // No precondition
+    applies(query[0]);
+    break;
+  case 2:  // precondition
+  case 3:  // precondition + clientId
+    ret = check(query[1], CheckMode::FULL);
+    if (ret.successful()) {
       applies(query[0]);
-      break;
-    case 2:  // precondition
-    case 3:  // precondition + clientId
-      ret = check(query[1], CheckMode::FULL);
-      if (ret.successful()) {
-        applies(query[0]);
-      } else {  // precondition failed
-        LOG_TOPIC(TRACE, Logger::AGENCY) << "Precondition failed!";
-      }
-      break;
-    default:  // Wrong
-      LOG_TOPIC(ERR, Logger::AGENCY)
-        << "We can only handle log entry with or without precondition! "
-        << "However we received " << query.toJson(); 
-      break;
-    }  
-    // Wake up TTL processing
-    {
-      CONDITION_LOCKER(guard, _cv);
-      _cv.signal();
+    } else {  // precondition failed
+      LOG_TOPIC(TRACE, Logger::AGENCY) << "Precondition failed!";
     }
-      
-  } catch (std::exception const& e) {  // Catch any erorrs
+    break;
+  default:  // Wrong
     LOG_TOPIC(ERR, Logger::AGENCY)
-      << __FILE__ << ":" << __LINE__ << " " << e.what();
+      << "We can only handle log entry with or without precondition! "
+      << "However we received " << query.toJson(); 
+    break;
+  }  
+  // Wake up TTL processing
+  {
+    CONDITION_LOCKER(guard, _cv);
+    _cv.signal();
   }
-    
+      
   return ret;
   
 }
@@ -484,12 +472,8 @@ check_ret_t Store::check(VPackSlice const& slice, CheckMode mode) const {
             break;
           }
         } else {
-          if (!found || node != precond.value) {
-            ret.push_back(precond.key);
-            if (mode == FIRST_FAIL) {
-              break;
-            }
-          }
+          throw StoreException(
+            std::string("Invalid precondition: ") + precond.value.toJson());
         }
       }
     } else {
