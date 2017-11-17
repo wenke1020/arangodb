@@ -44,6 +44,7 @@ class RestAgencyHandler : public RestBaseHandler {
   RestStatus execute() override;
 
  private:
+  RestStatus reportError(rest::ResponseCode, std::string const&);
   RestStatus reportErrorEmptyRequest();
   RestStatus reportTooManySuffices();
   RestStatus reportUnknownMethod();
