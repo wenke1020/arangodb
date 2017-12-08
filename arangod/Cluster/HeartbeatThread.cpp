@@ -65,7 +65,7 @@ std::atomic<bool> HeartbeatThread::HasRunOnce(false);
 
 HeartbeatThread::HeartbeatThread(AgencyCallbackRegistry* agencyCallbackRegistry,
                                  uint64_t interval,
-                                 uint64_t maxFailsBeforeWarning) 
+                                 uint64_t maxFailsBeforeWarning)
     : Thread("Heartbeat"),
       _agencyCallbackRegistry(agencyCallbackRegistry),
       _statusLock(std::make_shared<Mutex>()),
@@ -181,7 +181,7 @@ void HeartbeatThread::runBackgroundJob() {
 
 void HeartbeatThread::run() {
   ServerState::RoleEnum role = ServerState::instance()->getRole();
-  
+
   // mop: the heartbeat thread itself is now ready
   setReady();
   // mop: however we need to wait for the rest server here to come up
@@ -194,7 +194,7 @@ void HeartbeatThread::run() {
       if (isStopping()) {
         // startup aborted
         return;
-      } 
+      }
       std::this_thread::sleep_for(std::chrono::microseconds(100000));
     }
   }
@@ -212,7 +212,7 @@ void HeartbeatThread::run() {
     LOG_TOPIC(ERR, Logger::FIXME) << "invalid role setup found when starting HeartbeatThread";
     TRI_ASSERT(false);
   }
-  
+
   LOG_TOPIC(TRACE, Logger::HEARTBEAT)
       << "stopped heartbeat thread (" << role << ")";
 }
@@ -233,10 +233,10 @@ void HeartbeatThread::runDBServer() {
       << "Plan Version is not a number! " << result.toJson();
       return false;
     }
-    
+
     uint64_t version = result.getNumber<uint64_t>();
     bool doSync = false;
-    
+
     {
       MUTEX_LOCKER(mutexLocker, *_statusLock);
       if (version > _desiredVersions->plan) {
@@ -246,11 +246,11 @@ void HeartbeatThread::runDBServer() {
         doSync = true;
       }
     }
-    
+
     if (doSync) {
       syncDBServerStatusQuo();
     }
-    
+
     return true;
   };
 
@@ -299,7 +299,7 @@ void HeartbeatThread::runDBServer() {
               AgencyCommManager::path("Current/Version"),
               AgencyCommManager::path("Sync/Commands", _myId),
               "/.agency"}));
-        
+
         AgencyCommResult result = _agency.sendTransactionWithFailover(trx, 1.0);
         if (!result.successful()) {
           LOG_TOPIC(WARN, Logger::HEARTBEAT)
@@ -364,11 +364,11 @@ void HeartbeatThread::runDBServer() {
       double remain = interval - (TRI_microtime() - start);
       // mop: execute at least once
       do {
-        
+
         if (isStopping()) {
           break;
         }
-        
+
         LOG_TOPIC(TRACE, Logger::HEARTBEAT) << "Entering update loop";
 
         bool wasNotified;
@@ -448,7 +448,7 @@ void HeartbeatThread::runSingleServer() {
   GlobalReplicationApplier* applier = replication->globalReplicationApplier();
   ClusterInfo* ci = ClusterInfo::instance();
   TRI_ASSERT(applier != nullptr && ci != nullptr);
-  
+
   double start = 0; // no wait time initially
   while (!isStopping()) {
     double remain = interval - (TRI_microtime() - start);
@@ -464,7 +464,7 @@ void HeartbeatThread::runSingleServer() {
       }
     }
     start = TRI_microtime();
-    
+
     try {
       // send our state to the agency.
       // we don't care if this fails
@@ -484,31 +484,32 @@ void HeartbeatThread::runSingleServer() {
       AgencyCommResult result = _agency.sendTransactionWithFailover(trx, timeout);
       if (!result.successful()) {
         LOG_TOPIC(WARN, Logger::HEARTBEAT)
-            << "Heartbeat: Could not read from agency! status code: " 
-            << result._statusCode << ", incriminating body: " 
-            << result.bodyRef() << ", timeout: " << timeout;
-        
+            << "Heartbeat: Could not read from agency(1)! status code: "
+            << result._statusCode << ", error msg: " << result.errorMessage()
+            << ", incriminating body: " << result.bodyRef()
+            << ", timeout: " << timeout;
+
         if (!applier->isRunning()) {
           ServerState::instance()->setFoxxmaster(_myId);
           ServerState::setServerMode(ServerState::Mode::DEFAULT);
         }
         continue;
       }
-      
+
       VPackSlice response = result.slice()[0];
       VPackSlice agentPool = response.get(std::vector<std::string>{".agency", "pool"});
       updateAgentPool(agentPool);
-      
+
       VPackSlice shutdownSlice =
       response.get({AgencyCommManager::path(), "Shutdown"});
       if (shutdownSlice.isBool() && shutdownSlice.getBool()) {
         ApplicationServer::server->beginShutdown();
         break;
       }
-      
+
       LOG_TOPIC(TRACE, Logger::HEARTBEAT) << "Looking at Sync/Commands/" << _myId;
       handleStateChange(result);
-      
+
       // performing failover checks
       VPackSlice asyncReplication =
       response.get({AgencyCommManager::path(), "Plan", "AsyncReplication"});
@@ -518,21 +519,21 @@ void HeartbeatThread::runSingleServer() {
         continue;
       }
       std::string const leaderPath = "/Plan/AsyncReplication/Leader";
-      
+
       VPackSlice leaderSlice = asyncReplication.get("Leader");
       VPackBuilder myIdBuilder;
       myIdBuilder.add(VPackValue(_myId));
-      
+
       if (!leaderSlice.isString() || leaderSlice.getStringLength() == 0) {
         // Case 1: No leader in agency. Race for leadership
         LOG_TOPIC(WARN, Logger::HEARTBEAT) << "Leadership vaccuum detected, "
         << "attempting a takeover";
-        
+
         // if we stay a slave, the redirect will be turned on again
         ServerState::setServerMode(ServerState::Mode::TRYAGAIN);
         result = CasWithResult(_agency, leaderPath, /*oldJson*/leaderSlice,
                                /*newJson*/myIdBuilder.slice(), /*timeout*/5.0);
-        
+
         if (result.successful()) { // sucessfull leadership takeover
           LOG_TOPIC(INFO, Logger::HEARTBEAT) << "All your base are belong to us";
           if (applier->isRunning()) {
@@ -541,7 +542,7 @@ void HeartbeatThread::runSingleServer() {
           ServerState::instance()->setFoxxmaster(_myId);
           ServerState::setServerMode(ServerState::Mode::DEFAULT);
           continue; // nothing more to do here
-          
+
         } else if (result.httpCode() == TRI_ERROR_HTTP_PRECONDITION_FAILED) {
           // we did not become leader, someone else is, response contains
           // current value in agency
@@ -551,40 +552,40 @@ void HeartbeatThread::runSingleServer() {
           LOG_TOPIC(INFO, Logger::HEARTBEAT) << "Did not become leader";
           TRI_ASSERT(leaderSlice.isString() && leaderSlice.compareString(_myId) != 0);
           // intentionally falls through to case 3
-          
+
         } else {
           LOG_TOPIC(WARN, Logger::HEARTBEAT) << "got an unexpected agency error "
           << "code: " << result.httpCode() << " msg: " << result.errorMessage();
           continue; // try again next time
         }
       }
-      
+
       // Case 2: Current server is leader
       if (leaderSlice.compareString(_myId) == 0) {
         LOG_TOPIC(TRACE, Logger::HEARTBEAT) << "Currently leader: " << _myId;
-        
+
         if (applier->isRunning()) {
           applier->stopAndJoin();
         }
-        
+
         // ensure everyone has server access
         ServerState::instance()->setFoxxmaster(_myId);
         ServerState::setServerMode(ServerState::Mode::DEFAULT);
         continue; // nothing more to do
       }
-      
+
       // Case 3: Current server is follower, should not get here otherwise
       std::string const leader = leaderSlice.copyString();
       TRI_ASSERT(!leader.empty());
       LOG_TOPIC(TRACE, Logger::HEARTBEAT) << "Following " << leader;
-      
+
       ServerState::instance()->setFoxxmaster(leader);
       std::string endpoint = ci->getServerEndpoint(leader);
       if (endpoint.empty()) {
         LOG_TOPIC(ERR, Logger::HEARTBEAT) << "Failed to resolve leader endpoint";
         continue; // try again next time
       }
-      
+
       // enable redirections to leader
       auto prv = ServerState::setServerMode(ServerState::Mode::REDIRECT);
       if (prv == ServerState::Mode::DEFAULT) {
@@ -602,13 +603,13 @@ void HeartbeatThread::runSingleServer() {
         // wait for everything to calm down for good measure
         std::this_thread::sleep_for(std::chrono::seconds(10));
       }
-      
+
       if (applier->endpoint() != endpoint) {
         // configure applier for new endpoint
         if (applier->isRunning()) {
           applier->stopAndJoin();
         }
-        
+
         LOG_TOPIC(INFO, Logger::HEARTBEAT) << "Starting replication from " << endpoint;
         ReplicationApplierConfiguration config = applier->configuration();
         config._endpoint = endpoint;
@@ -618,7 +619,7 @@ void HeartbeatThread::runSingleServer() {
           config._jwt = auth->jwtToken();
         }
         // TODO: how do we initially configure the applier
-        
+
         // start initial synchronization
         TRI_ASSERT(!config._skipCreateDrop);
         GlobalInitialSyncer syncer(config);
@@ -630,19 +631,19 @@ void HeartbeatThread::runSingleServer() {
           << "failed: " << r.errorMessage();
           continue; // try again next time
         }
-        
+
         // steal the barrier from the syncer
         TRI_voc_tick_t barrierId = syncer.stealBarrier();
         TRI_voc_tick_t lastLogTick = syncer.getLastLogTick();
 
         // forget about any existing replication applier configuration
         applier->forget();
-        
+
         applier->reconfigure(config);
         applier->start(lastLogTick, true, barrierId);
-        
+
       } else if (!applier->isRunning()) {
-        
+
         // try to restart the applier
         if (applier->hasState()) {
           Result error = applier->lastError();
@@ -655,14 +656,14 @@ void HeartbeatThread::runSingleServer() {
             LOG_TOPIC(WARN, Logger::HEARTBEAT) << "restarting stopped applier...";
             applier->start(0, false, 0);
             continue; // check again next time
-          } 
+          }
         }
-      
+
         // complete resync next round
         LOG_TOPIC(WARN, Logger::HEARTBEAT) << "forgetting previous applier state. Will trigger a full resync now";
         applier->forget();
       }
-            
+
     } catch (std::exception const& e) {
       LOG_TOPIC(ERR, Logger::HEARTBEAT)
           << "got an exception in single server heartbeat: " << e.what();
@@ -678,7 +679,7 @@ void HeartbeatThread::updateServerMode(VPackSlice const& readOnlySlice) {
   if (readOnlySlice.isBoolean()) {
     readOnly = readOnlySlice.getBool();
   }
-  
+
   auto currentMode = ServerState::serverMode();
   // do not switch from maintenance or any other non expected mode
   if (currentMode == ServerState::Mode::DEFAULT && readOnly == true) {
@@ -738,9 +739,10 @@ void HeartbeatThread::runCoordinator() {
 
       if (!result.successful()) {
         LOG_TOPIC(WARN, Logger::HEARTBEAT)
-            << "Heartbeat: Could not read from agency! status code: " 
-            << result._statusCode << ", incriminating body: " 
-            << result.bodyRef() << ", timeout: " << timeout;
+            << "Heartbeat: Could not read from agency(2)! status code: "
+            << result._statusCode << ", error msg: " << result.errorMessage()
+            << ", incriminating body: " << result.bodyRef()
+            << ", timeout: " << timeout;
       } else {
 
         VPackSlice agentPool =
@@ -874,7 +876,7 @@ void HeartbeatThread::runCoordinator() {
           }
           // calling pregel code
           ClusterInfo::instance()->setFailedServers(failedServers);
-          
+
           pregel::PregelFeature *prgl = pregel::PregelFeature::instance();
           if (prgl != nullptr && failedServers.size() > 0) {
             pregel::RecoveryManager* mngr = prgl->recoveryManager();
