@@ -28,6 +28,11 @@
 #include "Basics/Common.h"
 #include "Basics/Locking.h"
 
+#define TRI_SHOW_LOCK_TIME 1
+#undef TRI_SHOW_LOCK_THRESHOLD
+#define TRI_SHOW_LOCK_THRESHOLD 0.2
+
+
 #ifdef TRI_SHOW_LOCK_TIME
 #include "Logger/Logger.h"
 #endif
@@ -61,9 +66,9 @@ class MutexLocker {
   /// @brief acquires a mutex
   /// The constructor acquires the mutex, the destructor unlocks the mutex.
   MutexLocker(LockType* mutex, LockerType type, bool condition, char const* file, int line)
-      : _mutex(mutex), _file(file), _line(line), 
+      : _mutex(mutex), _file(file), _line(line),
 #ifdef TRI_SHOW_LOCK_TIME
-        _isLocked(false), _time(0.0) {
+    _isLocked(false), _acquire(0.0), _execute(0.0), _release(0.0) {
 #else
         _isLocked(false) {
 #endif
@@ -87,25 +92,32 @@ class MutexLocker {
 
 #ifdef TRI_SHOW_LOCK_TIME
     // add elapsed time to time tracker
-    _time = TRI_microtime() - t;
+    _acquire = TRI_microtime() - t;
+    _execute = TRI_microtime();
 #endif
   }
 
   /// @brief releases the read-lock
   ~MutexLocker() {
+    _execute = TRI_microtime() - _execute;
     if (_isLocked) {
+      double t = TRI_microtime();
       _mutex->unlock();
+      _release = TRI_microtime() - t;
     }
 
 #ifdef TRI_SHOW_LOCK_TIME
-    if (_time > TRI_SHOW_LOCK_THRESHOLD) {
-      LOG_TOPIC(INFO, arangodb::Logger::PERFORMANCE) << "MutexLocker " << _file << ":" << _line << " took " << _time << " s";
+    double total(_acquire+_execute+_release);
+    if (total > TRI_SHOW_LOCK_THRESHOLD) {
+      LOG_TOPIC(INFO, arangodb::Logger::PERFORMANCE)
+        << "MutexLocker " << _file << ":" << _line << " took "
+        << total << "s (" << _acquire << ", " << _execute << ", " << _release << ")";
     }
 #endif
   }
-  
+
   bool isLocked() const { return _isLocked; }
-  
+
   /// @brief eventually acquire the read lock
   void lockEventual() {
     while (!tryLock()) {
@@ -113,22 +125,22 @@ class MutexLocker {
     }
     TRI_ASSERT(_isLocked);
   }
-  
+
   bool tryLock() {
     TRI_ASSERT(!_isLocked);
     if (_mutex->tryLock()) {
       _isLocked = true;
     }
-    return _isLocked; 
+    return _isLocked;
   }
 
   /// @brief acquire the mutex, blocking
-  void lock() { 
+  void lock() {
     TRI_ASSERT(!_isLocked);
     _mutex->lock();
     _isLocked = true;
   }
-  
+
   /// @brief unlocks the mutex if we own it
   bool unlock() {
     if (_isLocked) {
@@ -148,27 +160,30 @@ class MutexLocker {
     return false;
   }
 
-  
+
  private:
   /// @brief the mutex
   LockType* _mutex;
-  
+
   /// @brief file
   char const* _file;
 
   /// @brief line number
   int _line;
-  
+
   /// @brief whether or not the mutex is locked
   bool _isLocked;
 
 #ifdef TRI_SHOW_LOCK_TIME
   /// @brief lock time
-  double _time;
+  double _acquire;
+  double _execute;
+  double _release;
 #endif
 };
-  
+
 }
 }
+#undef TRI_SHOW_LOCK_TIME
 
 #endif
