@@ -86,7 +86,7 @@ class Context {
   void returnStringBuffer(basics::StringBuffer* stringBuffer);
   
   /// @brief temporarily lease a Builder object
-  arangodb::velocypack::Builder* leaseBuilder();
+  virtual arangodb::velocypack::Builder* leaseBuilder();
   
   /// @brief return a temporary Builder object
   void returnBuilder(arangodb::velocypack::Builder*);

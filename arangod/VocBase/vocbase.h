@@ -132,7 +132,7 @@ struct TRI_vocbase_t {
 
   TRI_vocbase_t(TRI_vocbase_type_e type, TRI_voc_tick_t id,
                 std::string const& name);
-  ~TRI_vocbase_t();
+  virtual ~TRI_vocbase_t();
 
  private:
   /// @brief sleep interval used when polling for a loading collection's status
@@ -198,7 +198,7 @@ struct TRI_vocbase_t {
   /// returns true if the name is allowed and false otherwise
   static bool IsAllowedName(bool allowSystem, std::string const& name);
   TRI_voc_tick_t id() const { return _id; }
-  std::string const& name() const { return _name; }
+  virtual std::string const& name() const { return _name; }
   std::string path() const;
   TRI_vocbase_type_e type() const { return _type; }
   State state() const { return _state; }

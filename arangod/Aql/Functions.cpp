@@ -3390,7 +3390,7 @@ AqlValue Functions::RemoveNth(arangodb::aql::Query* query,
 }
 
 /// @brief function NOT_NULL
-AqlValue Functions::NotNull(arangodb::aql::Query* query,
+AqlValue Functions::NotNull(arangodb::aql::Query*,
                             transaction::Methods* trx,
                             VPackFunctionParameters const& parameters) {
   size_t const n = parameters.size();
