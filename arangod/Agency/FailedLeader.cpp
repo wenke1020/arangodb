@@ -165,6 +165,12 @@ bool FailedLeader::start() {
     findNonblockedCommonHealthyInSyncFollower(
       _snapshot, _database, _collection, _shard);
   if (commonHealthyInSync.empty()) {
+    if (_created - std::chrono::system_clock::now() % 60 == 0) {
+      LOG_TOPIC(WARN, Logger::AGENCY)
+        << "Start failedLeader for " << _shard << " failed: Supervision cannot"
+        << " locate an in-sync follower for " << _shard << " or shard(s) connected"
+        << " through distributeShardsLike relation.";
+    }
     return false;
   } else {
     _to = commonHealthyInSync;
