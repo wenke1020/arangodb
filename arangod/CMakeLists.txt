@@ -206,6 +206,7 @@ SET(ARANGOD_SOURCES
   Cluster/HeartbeatThread.cpp
   Cluster/RestAgencyCallbacksHandler.cpp
   Cluster/RestClusterHandler.cpp
+  Cluster/Schmutz.cpp
   Cluster/ServerState.cpp
   Cluster/ShardDistributionReporter.cpp
   Cluster/TraverserEngine.cpp

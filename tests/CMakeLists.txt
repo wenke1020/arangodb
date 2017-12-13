@@ -21,6 +21,7 @@ add_executable(
   Basics/associative-multi-pointer-nohashcache-test.cpp
   Basics/conversions-test.cpp
   Basics/csv-test.cpp
+  Basics/EndianTest.cpp
   Basics/files-test.cpp
   Basics/fpconv-test.cpp
   Basics/json-test.cpp
