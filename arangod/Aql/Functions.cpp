@@ -2399,6 +2399,140 @@ AqlValue Functions::Average(arangodb::aql::Query* query,
   return AqlValue(AqlValueHintNull());
 }
 
+/// @brief function TEST_INTERNAL
+void convert(uint64_t i, VPackSlice const& slice, arangodb::transaction::BuilderLeaser& builder) { 
+  switch (i) {
+  case 0:
+    builder->add(VPackValue(1));
+    break;
+  case 1:
+    builder->add(VPackValue(42));
+    break;        
+  case 2:
+    builder->openArray();
+    builder->add(VPackValue(1));
+    builder->add(VPackValue(2));
+    builder->close();
+    break;        
+  case 3:
+    builder->openArray();
+    if (slice.isArray()) {
+      // the original value shal be an array, and we copy it. 
+      for (VPackSlice s : VPackArrayIterator(slice)) {
+        builder->add(s);
+      }
+    }
+    builder->openArray();
+    builder->add(VPackValue(1));
+    builder->add(VPackValue(2));
+    builder->close();
+    builder->close();
+    break;        
+  case 4:
+    builder->openObject();
+    builder->add("a", VPackValue(9));
+    builder->add("b", VPackValue(2));
+    builder->close();
+    break;        
+  default: // Copy the original value
+    builder->add(slice);
+  }
+}
+
+AqlValue Functions::TestInternal(arangodb::aql::Query* query,
+                                 transaction::Methods* trx,
+                                 VPackFunctionParameters const& parameters) {
+  char const* AFN = "TEST_INTERNAL";
+  ValidateParameters(parameters, AFN, 2, 2);
+  
+  AqlValue test = ExtractFunctionParameterValue(parameters, 0);
+  AqlValue what = ExtractFunctionParameterValue(parameters, 1);
+
+  if (!test.isString()) {
+    RegisterInvalidArgumentWarning(query, AFN);
+    return AqlValue(AqlValueHintNull());
+  }
+  
+  std::string testName = test.slice().copyString();
+  if (testName == "MODIFY_ARRAY") {
+    if (!what.isArray()) {
+      RegisterInvalidArgumentWarning(query, AFN);
+      return AqlValue(AqlValueHintNull());
+    }
+    transaction::BuilderLeaser builder(trx);
+    builder->openArray();
+    AqlValueMaterializer materializer(trx);
+
+    uint64_t i = 0;
+    VPackSlice slice = materializer.slice(what, false);
+    for (VPackSlice s : VPackArrayIterator(slice)) {
+      convert(i, s, builder);
+      i++;
+    }
+    for (; i < 6; i ++ ) {
+      convert(i, VPackSlice(), builder);
+    }
+    builder->add(VPackValue("foo"));
+    builder->close();
+    return AqlValue(builder.get());
+  }
+  else if (testName == "MODIFY_OBJECT") {
+    if (!what.isObject()) {
+      RegisterInvalidArgumentWarning(query, AFN);
+      return AqlValue(AqlValueHintNull());
+    }
+    transaction::BuilderLeaser builder(trx);
+    builder->openObject();
+    AqlValueMaterializer materializer(trx);
+    VPackSlice slice = materializer.slice(what, false);
+    
+    builder->add("a", VPackValue(1));
+    builder->add("b", VPackValue(3));
+    
+    VPackBuilder sub;
+    sub.openArray();
+    sub.add(VPackValue(1));
+    sub.add(VPackValue(3));
+    sub.close();
+    builder->add("c", sub.slice());
+
+    auto d = slice.get("d");
+    if (d.isArray()) {
+      VPackBuilder sub2(d);
+      sub2.add(sub.slice());
+      builder->add("d", sub2.slice());
+    }
+    auto e = slice.get("e");
+    if (e.isObject()) {
+      VPackBuilder sub2(e);
+      VPackBuilder sub3;
+      sub3.openObject();
+      sub3.add("a", VPackValue(1));
+      sub3.add("b", VPackValue(3));
+      sub3.close();
+      sub2.add("f", sub3.slice());
+      builder->add("e", sub2.slice());
+    }
+    builder->add("g", VPackValue("foo"));
+    for (auto const& entry : VPackObjectIterator(slice, true)) {
+      std::string key = entry.key.copyString();
+      if ((key.length() != 1) ||
+          (key < "a") ||
+          (key > "f")) {
+        builder->add(entry.key.copyString(), entry.value);
+      }
+    }
+    builder->close();
+    return AqlValue(builder.get());
+  } else if (testName == "DEADLOCK") {
+    THROW_ARANGO_EXCEPTION(TRI_ERROR_DEADLOCK);
+  }
+  else {
+    RegisterInvalidArgumentWarning(query, AFN);
+    return AqlValue(AqlValueHintNull());
+  }
+}
+
 /// @brief function SLEEP
 AqlValue Functions::Sleep(arangodb::aql::Query* query,
                           transaction::Methods* trx,
