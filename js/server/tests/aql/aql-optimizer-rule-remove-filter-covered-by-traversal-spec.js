@@ -66,8 +66,8 @@ describe('Single Traversal Optimizer', function () {
 
   before(function () {
     dropCollections();
-    let v = db._create(vertexCollection);
-    let e = db._createEdgeCollection(edgeCollection);
+    let v = db._create(vertexCollection, {numberOfShards: 4});
+    let e = db._createEdgeCollection(edgeCollection, {numberOfShards: 4});
     let vertices = [
       {_key: "start"}
     ];

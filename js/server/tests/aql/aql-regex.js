@@ -47,7 +47,7 @@ function ahuacatlRegexTestSuite () {
 
     setUp : function () {
       db._drop("UnitTestsAhuacatlRegex");
-      c = db._create("UnitTestsAhuacatlRegex");
+      c = db._create("UnitTestsAhuacatlRegex", {numberOfShards: 4});
 
       for (var i = 0; i < 1000; ++i) {
         c.insert({ _key: "test" + i });

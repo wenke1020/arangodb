@@ -105,7 +105,7 @@ function optimizerRuleTestSuite() {
       var loopto = 10;
 
         internal.db._drop(colName);
-        geocol = internal.db._create(colName);
+        geocol = internal.db._create(colName, {numberOfShards: 4});
         geocol.ensureIndex({type:"geo", fields:["lat","lon"]});
         geocol.ensureIndex({type:"geo", fields:["geo"]});
         geocol.ensureIndex({type:"geo", fields:["loca.tion.lat","loca.tion.lon"]});
@@ -277,7 +277,7 @@ function geoVariationsTestSuite() {
 
     setUp : function () {
       internal.db._drop(colName);
-      geocol = internal.db._create(colName);
+      geocol = internal.db._create(colName, {numberOfShards: 4});
       geocol.ensureIndex({ type:"geo", fields: ["location"] });
       let documents = [
         {"_key":"1138","_id":"test/1138","_rev":"_WjFfhsm---","location":[11,0]},

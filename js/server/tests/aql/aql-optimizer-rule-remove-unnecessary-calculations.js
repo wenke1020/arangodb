@@ -53,7 +53,7 @@ function optimizerRuleTestSuite () {
 
     setUp : function () {
       db._drop("UnitTestsOptimizerTest");
-      db._create("UnitTestsOptimizerTest");
+      db._create("UnitTestsOptimizerTest", {numberOfShards: 4});
     },
 
     ////////////////////////////////////////////////////////////////////////////////

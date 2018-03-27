@@ -52,7 +52,7 @@ function ahuacatlFulltextTestSuite () {
     setUp : function () {
       db._drop(cn);
 
-      fulltext = db._create(cn);
+      fulltext = db._create(cn, {numberOfShards: 4});
       fulltext.ensureFulltextIndex("text");
     },
 

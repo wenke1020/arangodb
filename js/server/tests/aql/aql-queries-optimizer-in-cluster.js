@@ -53,7 +53,7 @@ function ahuacatlQueryOptimizerInTestSuite () {
 
     setUp : function () {
       internal.db._drop(cn);
-      c = internal.db._create(cn);
+      c = internal.db._create(cn, {numberOfShards: 4});
     },
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +313,7 @@ function ahuacatlQueryOptimizerInTestSuite () {
       
       var en = cn + "Edge";
       internal.db._drop(en);
-      var e = internal.db._createEdgeCollection(en);
+      var e = internal.db._createEdgeCollection(en, {numberOfShards: 4});
       
       for (i = 1; i < 100; ++i) {
         e.save(cn + "/test" + i, cn + "/test" + (i - 1), { });
@@ -342,7 +342,7 @@ function ahuacatlQueryOptimizerInTestSuite () {
       
       var en = cn + "Edge";
       internal.db._drop(en);
-      var e = internal.db._createEdgeCollection(en);
+      var e = internal.db._createEdgeCollection(en, {numberOfShards: 4});
       
       for (i = 1; i < 100; ++i) {
         e.save(cn + "/test" + i, cn + "/test" + (i - 1), { });
@@ -371,7 +371,7 @@ function ahuacatlQueryOptimizerInTestSuite () {
       
       var en = cn + "Edge";
       internal.db._drop(en);
-      var e = internal.db._createEdgeCollection(en);
+      var e = internal.db._createEdgeCollection(en, {numberOfShards: 4});
       
       for (i = 1; i < 100; ++i) {
         e.save(cn + "/test" + i, cn + "/test" + (i - 1), { });
@@ -397,7 +397,7 @@ function ahuacatlQueryOptimizerInTestSuite () {
       
       var en = cn + "Edge";
       internal.db._drop(en);
-      var e = internal.db._createEdgeCollection(en);
+      var e = internal.db._createEdgeCollection(en, {numberOfShards: 4});
       
       for (i = 1; i < 100; ++i) {
         e.save(cn + "/test" + i, cn + "/test" + (i - 1), { });

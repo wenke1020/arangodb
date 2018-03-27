@@ -56,7 +56,7 @@ function ahuacatlRefAccessAttributeTestSuite () {
 
     setUp : function () {
       internal.db._drop("UnitTestsAhuacatlRefAccess");
-      collection = internal.db._create("UnitTestsAhuacatlRefAccess");
+      collection = internal.db._create("UnitTestsAhuacatlRefAccess", {numberOfShards: 4});
 
       for (var i = 1; i <= 10; ++i) {
         collection.save({ "val" : i });

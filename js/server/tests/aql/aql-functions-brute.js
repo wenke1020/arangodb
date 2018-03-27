@@ -216,7 +216,7 @@ function ahuacatlFunctionsBruteTestSuite () {
 
     setUp : function () {
       db._drop("UnitTestsFunctions");
-      c = db._create("UnitTestsFunctions");
+      c = db._create("UnitTestsFunctions", {numberOfShards: 4});
       c.insert({ _key: "test", value: "test" });
     },
 

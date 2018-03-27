@@ -54,7 +54,7 @@ function ahuacatlHashTestSuite () {
     setUp : function () {
       internal.db._drop("UnitTestsAhuacatlHash");
 
-      hash = internal.db._create("UnitTestsAhuacatlHash");
+      hash = internal.db._create("UnitTestsAhuacatlHash", {numberOfShards: 4});
 
       for (var i = 1; i <= 5; ++i) {
         for (var j = 1; j <= 5; ++j) {

@@ -59,7 +59,8 @@ describe('Rule optimize-traversals', () => {
   before(() => {
     cleanup();
     graph = graphModule._create(graphName, [
-      graphModule._relation('edges', 'circles', 'circles')]);
+      graphModule._relation('edges', 'circles', 'circles')], [],
+      {numberOfShards: 4});
 
     // Add circle circles
     graph.circles.save({'_key': 'A', 'label': '1'});

@@ -42,7 +42,7 @@ function optimizerCollectMethodsTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 1500; ++i) {
         c.save({ group: "test" + (i % 10), value: i });

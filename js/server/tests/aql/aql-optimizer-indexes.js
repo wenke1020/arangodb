@@ -41,7 +41,7 @@ function optimizerIndexesTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 2000; ++i) {
         c.save({ _key: "test" + i, value: i });
@@ -3402,8 +3402,8 @@ function optimizerIndexesMultiCollectionTestSuite () {
     setUp : function () {
       db._drop("UnitTestsCollection1");
       db._drop("UnitTestsCollection2");
-      c1 = db._create("UnitTestsCollection1");
-      c2 = db._create("UnitTestsCollection2");
+      c1 = db._create("UnitTestsCollection1", {numberOfShards: 4});
+      c2 = db._create("UnitTestsCollection2", {numberOfShards: 4});
  
       var i;
       for (i = 0; i < 200; ++i) {

@@ -83,13 +83,13 @@ function ahuacatlQueryGeneralEdgesTestSuite() {
       db._drop(e2);
       db._drop(or);
 
-      var vertex1 = db._create(v1);
-      var vertex2 = db._create(v2);
-      var vertex3 = db._create(v3);
-      var vertex4 = db._create(v4);
-      var edge1 = db._createEdgeCollection(e1);
-      var edge2 = db._createEdgeCollection(e2);
-      var orphan = db._create(or);
+      var vertex1 = db._create(v1, {numberOfShards: 4});
+      var vertex2 = db._create(v2, {numberOfShards: 4});
+      var vertex3 = db._create(v3, {numberOfShards: 4});
+      var vertex4 = db._create(v4, {numberOfShards: 4});
+      var edge1 = db._createEdgeCollection(e1, {numberOfShards: 4});
+      var edge2 = db._createEdgeCollection(e2, {numberOfShards: 4});
+      var orphan = db._create(or, {numberOfShards: 4});
 
       vertex1.save({ _key: "v1", hugo: true});
       vertex1.save({ _key: "v2", hugo: true});
@@ -688,9 +688,9 @@ function ahuacatlQueryGeneralCommonTestSuite() {
       db._drop("UnitTestsAhuacatlVertex2");
       db._drop("UnitTestsAhuacatlEdge1");
 
-      var vertex1 = db._create("UnitTestsAhuacatlVertex1");
-      var vertex2 = db._create("UnitTestsAhuacatlVertex2");
-      var edge1 = db._createEdgeCollection("UnitTestsAhuacatlEdge1");
+      var vertex1 = db._create("UnitTestsAhuacatlVertex1", {numberOfShards: 4});
+      var vertex2 = db._create("UnitTestsAhuacatlVertex2", {numberOfShards: 4});
+      var edge1 = db._createEdgeCollection("UnitTestsAhuacatlEdge1", {numberOfShards: 4});
 
       var v1 = vertex1.save({ _key: "v1", hugo: true})._id;
       var v2 = vertex1.save({ _key: "v2", hugo: true})._id;
@@ -1036,12 +1036,12 @@ function ahuacatlQueryGeneralTraversalTestSuite() {
       var KenntAnderenBerliner = "UnitTests_KenntAnderenBerliner";
       var KenntAnderen = "UnitTests_KenntAnderen";
 
-      var Berlin = db._create(v1);
-      var Hamburg = db._create(v2);
-      var Frankfurt = db._create(v3);
-      var Leipzig = db._create(v4);
-      db._createEdgeCollection(KenntAnderenBerliner);
-      db._createEdgeCollection(KenntAnderen);
+      var Berlin = db._create(v1, {numberOfShards: 4});
+      var Hamburg = db._create(v2, {numberOfShards: 4});
+      var Frankfurt = db._create(v3, {numberOfShards: 4});
+      var Leipzig = db._create(v4, {numberOfShards: 4});
+      db._createEdgeCollection(KenntAnderenBerliner, {numberOfShards: 4});
+      db._createEdgeCollection(KenntAnderen, {numberOfShards: 4});
 
       var Anton = Berlin.save({ _key: "Anton", gender: "male", age: 20});
       var Berta = Berlin.save({ _key: "Berta", gender: "female", age: 25});
@@ -1370,12 +1370,12 @@ function ahuacatlQueryGeneralCyclesSuite() {
       var KenntAnderenBerliner = "UnitTests_KenntAnderenBerliner";
       var KenntAnderen = "UnitTests_KenntAnderen";
 
-      var Berlin = db._create(v1);
-      var Hamburg = db._create(v2);
-      var Frankfurt = db._create(v3);
-      var Leipzig = db._create(v4);
-      db._createEdgeCollection(KenntAnderenBerliner);
-      db._createEdgeCollection(KenntAnderen);
+      var Berlin = db._create(v1, {numberOfShards: 4});
+      var Hamburg = db._create(v2, {numberOfShards: 4});
+      var Frankfurt = db._create(v3, {numberOfShards: 4});
+      var Leipzig = db._create(v4, {numberOfShards: 4});
+      db._createEdgeCollection(KenntAnderenBerliner, {numberOfShards: 4});
+      db._createEdgeCollection(KenntAnderen, {numberOfShards: 4});
 
       var Anton = Berlin.save({ _key: "Anton", gender: "male", age: 20});
       var Berta = Berlin.save({ _key: "Berta", gender: "female", age: 25});
@@ -1532,12 +1532,12 @@ function ahuacatlQueryMultiCollectionMadnessTestSuite() {
       db._drop(e1);
       db._drop(e2);
 
-      var vertex1 = db._create(v1);
-      var vertex2 = db._create(v2);
-      var vertex3 = db._create(v3);
+      var vertex1 = db._create(v1, {numberOfShards: 4});
+      var vertex2 = db._create(v2, {numberOfShards: 4});
+      var vertex3 = db._create(v3, {numberOfShards: 4});
 
-      var edge1 = db._createEdgeCollection(e1);
-      var edge2 = db._createEdgeCollection(e2);
+      var edge1 = db._createEdgeCollection(e1, {numberOfShards: 4});
+      var edge2 = db._createEdgeCollection(e2, {numberOfShards: 4});
 
       s1 = vertex1.save({ _key: "start"})._id;
       c1 = vertex2.save({ _key: "center"})._id;
@@ -1625,13 +1625,13 @@ function ahuacatlQueryShortestPathTestSuite() {
       db._drop(e3);
       db._drop(e4);
       
-      var v1Col = db._create(v1);
-      var v2Col = db._create(v2);
-      var v3Col = db._create(v3);
-      db._createEdgeCollection(e1);
-      db._createEdgeCollection(e2);
-      db._createEdgeCollection(e3);
-      db._createEdgeCollection(e4);
+      var v1Col = db._create(v1, {numberOfShards: 4});
+      var v2Col = db._create(v2, {numberOfShards: 4});
+      var v3Col = db._create(v3, {numberOfShards: 4});
+      db._createEdgeCollection(e1, {numberOfShards: 4});
+      db._createEdgeCollection(e2, {numberOfShards: 4});
+      db._createEdgeCollection(e3, {numberOfShards: 4});
+      db._createEdgeCollection(e4, {numberOfShards: 4});
       
       var A = v1Col.save({ _key: "A"});
       var B = v2Col.save({ _key: "B"});

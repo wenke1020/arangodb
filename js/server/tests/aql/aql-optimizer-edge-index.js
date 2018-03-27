@@ -42,8 +42,8 @@ function optimizerEdgeIndexTestSuite () {
     setUp: function () {
       db._drop('UnitTestsCollection');
       db._drop('UnitTestsEdgeCollection');
-      db._create('UnitTestsCollection');
-      e = db._createEdgeCollection('UnitTestsEdgeCollection');
+      db._create('UnitTestsCollection', {numberOfShards: 4});
+      e = db._createEdgeCollection('UnitTestsEdgeCollection', {numberOfShards: 4});
 
       for (var i = 0; i < 2000; i += 100) {
         var j;

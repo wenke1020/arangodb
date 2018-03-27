@@ -67,7 +67,7 @@ function optimizerRuleUseIndexRangeTester () {
       for (var i = 0; i < n.length; i++) {
         var collName = n[i], coll;
         internal.db._drop(collName);
-        coll = internal.db._create(collName);
+        coll = internal.db._create(collName, {numberOfShards: 4});
         for (var j = 0; j < 10; j++) {
           coll.insert({"a":j, "s":"s"+j});
         }

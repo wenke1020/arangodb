@@ -54,7 +54,7 @@ function ahuacatlQueryOptimizerLimitTestSuite () {
 
     setUp : function () {
       internal.db._drop(cn);
-      collection = internal.db._create(cn);
+      collection = internal.db._create(cn, {numberOfShards: 4});
 
       for (var i = 0; i < 100; ++i) {
         collection.save({ "value" : i });

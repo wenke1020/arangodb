@@ -50,7 +50,7 @@ function withinRectangleSuite () {
       db._drop("geo2");
 
       var i, j ;
-      db._create("geo");
+      db._create("geo", {numberOfShards: 4});
       indexId = db.geo.ensureGeoIndex("lat", "lon");
 
       for (i = -40; i < 40; ++i) {
@@ -59,7 +59,7 @@ function withinRectangleSuite () {
         }
       }
 
-      db._create("geo2");
+      db._create("geo2", {numberOfShards: 4});
       indexId = db.geo2.ensureGeoIndex("pos");
 
       for (i = -40; i < 40; ++i) {

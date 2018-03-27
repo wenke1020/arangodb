@@ -55,7 +55,7 @@ function singleAttributeTestSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
 
       var i;
 
@@ -153,7 +153,7 @@ function nonIndexedAttributeTestSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
 
       var i;
 
@@ -244,7 +244,7 @@ function nestedAttributeTestSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
 
       var i;
 

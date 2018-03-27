@@ -55,8 +55,8 @@ function ahuacatlQueryEdgesTestSuite () {
       internal.db._drop("UnitTestsAhuacatlUsers");
       internal.db._drop("UnitTestsAhuacatlUserRelations");
 
-      users = internal.db._create("UnitTestsAhuacatlUsers");
-      relations = internal.db._createEdgeCollection("UnitTestsAhuacatlUserRelations");
+      users = internal.db._create("UnitTestsAhuacatlUsers", {numberOfShards: 4});
+      relations = internal.db._createEdgeCollection("UnitTestsAhuacatlUserRelations", {numberOfShards: 4});
 
       docs["John"] = users.save({ "id" : 100, "name" : "John" });
       docs["Fred"] = users.save({ "id" : 101, "name" : "Fred" });

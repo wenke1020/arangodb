@@ -46,8 +46,8 @@ function queryWithCollectionsTestSuite () {
     setUp : function () {
       db._drop("UnitTestsCollection1");
       db._drop("UnitTestsCollection2");
-      c1 = db._create("UnitTestsCollection1");
-      c2 = db._create("UnitTestsCollection2");
+      c1 = db._create("UnitTestsCollection1", {numberOfShards: 4});
+      c2 = db._create("UnitTestsCollection2", {numberOfShards: 4});
     },
 
     tearDown : function () {

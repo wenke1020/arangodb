@@ -45,7 +45,7 @@ function optimizerAggregateTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 2000; ++i) {
         c.save({ group: "test" + (i % 10), value1: i, value2: i % 5 });
@@ -1381,7 +1381,7 @@ function optimizerAggregateCollectionTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollectionA");
-      var c = db._create("UnitTestsCollectionA");
+      var c = db._create("UnitTestsCollectionA", {numberOfShards: 4});
 
       var values = [ 
         { "_key" : "t1" }, 
@@ -1394,7 +1394,7 @@ function optimizerAggregateCollectionTestSuite () {
       });
 
       db._drop("UnitTestsCollectionB");
-      c = db._create("UnitTestsCollectionB");
+      c = db._create("UnitTestsCollectionB", {numberOfShards: 4});
 
       values = [
         { "tlm" : 1456480062167, "ct" : 0, "rev" : "t2", "_key" : "5" },

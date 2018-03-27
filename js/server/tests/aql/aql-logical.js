@@ -52,7 +52,7 @@ function ahuacatlLogicalTestSuite () {
       // this.tearDown(); should actually work as well
       db._drop(vn);
       
-      vertex = db._create(vn);
+      vertex = db._create(vn, {numberOfShards: 4});
       d = vertex.save({ _key: "test1" });
     },
 
