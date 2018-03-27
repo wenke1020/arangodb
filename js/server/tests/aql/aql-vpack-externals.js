@@ -48,13 +48,13 @@ function aqlVPackExternalsTestSuite () {
 
     setUp: function () {
       cleanUp();
-      let coll = db._create(collName);
+      let coll = db._create(collName, {numberOfShards: 4});
 
       for (let i = 1000; i < 5000; ++i) {
         coll.save({_key: "test" + i, value: "test" + i});
       }
 
-      let ecoll = db._createEdgeCollection(edgeColl);
+      let ecoll = db._createEdgeCollection(edgeColl, {numberOfShards: 4});
 
       for(let i = 1001; i < 3000; ++i) {
         ecoll.save({_from: collName + "/test1000", _to: collName + "/test" + i});

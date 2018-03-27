@@ -52,7 +52,7 @@ function explainSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
 
       for (var i = 0; i < 100; ++i) {
         c.save({ _key: "testkey" + i, value: i });

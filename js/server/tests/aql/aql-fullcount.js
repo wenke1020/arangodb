@@ -41,7 +41,7 @@ function optimizerFullcountTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       c.save({ values: [ "foo", "bar" ]});
       c.save({ values: [ "bar" ]});

@@ -71,7 +71,7 @@ function ahuacatlFunctionsTestSuite () {
 
     setUpAll : function () {
       db._drop(collectionName);
-      collection = db._create(collectionName);
+      collection = db._create(collectionName, {numberOfShards: 4});
       
       // Insert 10 elements
       for (var i = 0; i < 10; ++i) {

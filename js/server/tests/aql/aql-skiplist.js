@@ -49,7 +49,7 @@ function ahuacatlSkiplistOverlappingTestSuite () {
 
     setUp : function () {
       internal.db._drop("UnitTestsAhuacatlSkiplist");
-      skiplist = internal.db._create("UnitTestsAhuacatlSkiplist");
+      skiplist = internal.db._create("UnitTestsAhuacatlSkiplist", {numberOfShards: 4});
       skiplist.ensureSkiplist("a");
 
       for (var i = 0; i < 10000; ++i) {

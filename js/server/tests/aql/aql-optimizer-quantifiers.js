@@ -41,7 +41,7 @@ function optimizerQuantifiersTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 10; ++i) {
         c.insert({ value: i % 5 });

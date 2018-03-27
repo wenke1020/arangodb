@@ -41,7 +41,7 @@ function optimizerConditionsTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
     },
 
     tearDown : function () {

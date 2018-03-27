@@ -79,7 +79,7 @@ function optimizerRuleTestSuite() {
       var loopto = 10;
 
       internal.db._drop(colName);
-      fulltext = internal.db._create(colName);
+      fulltext = internal.db._create(colName, {numberOfShards: 4});
       fulltext.ensureIndex({type:"fulltext", fields:["t1"]});
       fulltext.ensureIndex({type:"fulltext", fields:["t2"], minLength: 4});        
       fulltext.ensureIndex({type:"fulltext", fields:["t3.e.x"]});

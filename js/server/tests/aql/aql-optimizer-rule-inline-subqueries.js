@@ -182,7 +182,7 @@ function optimizerRuleCollectionTestSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
     },
 
     ////////////////////////////////////////////////////////////////////////////////

@@ -98,7 +98,7 @@ function nestedArraySimpleSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
 
       c.insert({ _key: "1", value: "foo" });
       c.insert({ _key: "2", value: [ "foo", "bar" ] });
@@ -167,7 +167,7 @@ function nestedArrayIndexSuite () {
 
     setUp : function () {
       db._drop(cn);
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
     },
 
     tearDown : function () {
@@ -433,8 +433,8 @@ function nestedArrayInArraySuite () {
     setUp : function () {
       db._drop(cn1);
       db._drop(cn2);
-      c1 = db._create(cn1);
-      c2 = db._create(cn2);
+      c1 = db._create(cn1, {numberOfShards: 4});
+      c2 = db._create(cn2, {numberOfShards: 4});
     },
 
     tearDown : function () {

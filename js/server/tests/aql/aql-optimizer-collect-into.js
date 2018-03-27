@@ -52,7 +52,7 @@ function optimizerCollectExpressionTestSuite () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 1000; ++i) {
         c.save({ gender: (i % 2 === 0 ? "m" : "f"), age: 11 + (i % 71), value: i });

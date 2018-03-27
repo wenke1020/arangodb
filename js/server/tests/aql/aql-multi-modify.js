@@ -55,9 +55,9 @@ function ahuacatlMultiModifySuite () {
       db._drop(cn1);
       db._drop(cn2);
       db._drop(cn3);
-      c1 = db._create(cn1);
-      c2 = db._create(cn2);
-      c3 = db._createEdgeCollection(cn3);
+      c1 = db._create(cn1, {numberOfShards: 4});
+      c2 = db._create(cn2, {numberOfShards: 4});
+      c3 = db._createEdgeCollection(cn3, {numberOfShards: 4});
     },
 
 ////////////////////////////////////////////////////////////////////////////////

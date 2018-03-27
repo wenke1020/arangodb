@@ -94,7 +94,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       cx.save({ "title" : "123", "value" : 456, "_key" : "foobar" });
       cx.save({ "_key" : "so-this-is-it", "title" : "nada", "value" : 123 });
 
@@ -222,7 +222,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       cx.save({ "title" : "123", "value" : 456, "_key" : "foobar" });
       cx.save({ "_key" : "so-this-is-it", "title" : "nada", "value" : 123 });
 
@@ -292,7 +292,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       var d1 = cx.save({ "title" : "123", "value" : 456 });
       var d2 = cx.save({ "title" : "nada", "value" : 123 });
 
@@ -370,7 +370,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       var d1 = cx.save({ "title" : "123", "value" : 456, "zxy" : 1 });
       var d2 = cx.save({ "title" : "nada", "value" : 123, "zzzz" : false });
 
@@ -411,7 +411,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       var d1 = cx.save({ "title" : "123", "value" : 456, "zxy" : 1 });
       var d2 = cx.save({ "title" : "nada", "value" : 123, "zzzz" : false });
       var d3 = cx.save({ "title" : "boom", "value" : 3321, "zzzz" : null });
@@ -459,7 +459,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      internal.db._create(cn);
+      internal.db._create(cn, {numberOfShards: 4});
 
       var expected, actual;
 
@@ -494,7 +494,7 @@ function ahuacatlMiscFunctionsTestSuite () {
       var cn = "UnitTestsAhuacatlFunctions";
 
       internal.db._drop(cn);
-      var cx = internal.db._create(cn);
+      var cx = internal.db._create(cn, {numberOfShards: 4});
       var d1 = cx.save({ "title" : "123", "value" : 456 });
 
       var expected, actual;

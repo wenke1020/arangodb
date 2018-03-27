@@ -64,8 +64,8 @@ function useIndexesTestSuite() {
     setUp : function () {
       internal.db._drop(colName1);
       internal.db._drop(colName2);
-      collection1 = internal.db._create(colName1);
-      collection2 = internal.db._create(colName2);
+      collection1 = internal.db._create(colName1, {numberOfShards: 4});
+      collection2 = internal.db._create(colName2, {numberOfShards: 4});
 
       // insert documents batched
       let batchSize = 100;

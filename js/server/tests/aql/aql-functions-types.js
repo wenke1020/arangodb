@@ -51,7 +51,7 @@ function ahuacatlTypesFunctionsTestSuite () {
     setUpAll : function () {
       db._drop(vn);
 
-      var vertex = db._create(vn);
+      var vertex = db._create(vn, {numberOfShards: 4});
       vertex.save({ _key: "test1" });
     },
 

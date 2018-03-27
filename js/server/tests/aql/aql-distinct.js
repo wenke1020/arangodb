@@ -55,7 +55,7 @@ function ahuacatlDistinct () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 100; ++i) {
         c.save({ value1: i, value2: i % 10, value3: "test" + i, value4: "test" + (i % 10) });
@@ -278,7 +278,7 @@ function ahuacatlCollect () {
   return {
     setUp : function () {
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 10; ++i) {
         for (var j = 0; j < 10; ++j) {

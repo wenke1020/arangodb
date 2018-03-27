@@ -57,7 +57,7 @@ function optimizerRuleTestSuite () {
 
     setUp : function () {
       db._drop(collectionName);
-      collection = db._create(collectionName);
+      collection = db._create(collectionName, {numberOfShards: 4});
 
       for (var i = 0; i < 10; ++i) {
         collection.save({ value: i });

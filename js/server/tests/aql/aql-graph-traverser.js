@@ -133,17 +133,17 @@ function limitSuite () {
 
       var i;
 
-      var c = db._create(gn + 'v');
+      var c = db._create(gn + 'v', {numberOfShards: 4});
       for (i = 0; i < 10000; ++i) {
         c.insert({_key: 'test' + i});
       }
 
-      c = db._createEdgeCollection(gn + 'e');
+      c = db._createEdgeCollection(gn + 'e', {numberOfShards: 4});
       for (i = 0; i < 10000; ++i) {
         c.insert({ _from: gn + 'v/test' + i, _to: gn + 'v/test' + i });
       }
 
-      c = db._createEdgeCollection(gn + 'e2');
+      c = db._createEdgeCollection(gn + 'e2', {numberOfShards: 4});
       c.insert({ _from: gn + 'v/test1', _to: gn + 'v/test0' });
       c.insert({ _from: gn + 'v/test2', _to: gn + 'v/test0' });
       c.insert({ _from: gn + 'v/test2', _to: gn + 'v/test1' });
@@ -224,9 +224,9 @@ function nestedSuite () {
   return {
 
     setUpAll: function () {
-      tags = db._create(gn + 'tags');
-      objects = db._create(gn + 'objects');
-      tagged = db._createEdgeCollection(gn + 'tagged');
+      tags = db._create(gn + 'tags', {numberOfShards: 4});
+      objects = db._create(gn + 'objects', {numberOfShards: 4});
+      tagged = db._createEdgeCollection(gn + 'tagged', {numberOfShards: 4});
 
       [ 'airplane', 'bicycle', 'train', 'car', 'boat' ].forEach(function (_key) {
         objects.insert({ _key });
@@ -322,7 +322,7 @@ function namedGraphSuite () {
       } catch (e) {
         // It is expected that this graph does not exist.
       }
-      gm._create(gn, [gm._relation(en, vn, vn)]);
+      gm._create(gn, [gm._relation(en, vn, vn)], [], {numberOfShards: 4});
     },
 
     tearDownAll: function () {
@@ -650,7 +650,7 @@ function multiCollectionGraphSuite () {
       db._drop(vn2);
       db._drop(en2);
       createBaseGraph();
-      gm._create(gn, [gm._relation(en, vn, vn), gm._relation(en2, vn2, vn)]);
+      gm._create(gn, [gm._relation(en, vn, vn), gm._relation(en2, vn2, vn)], [], {numberOfShards: 4});
       db[vn2].save({_key: 'G'});
       db[en2].save(vn2 + '/G', vn + '/D', {});
     },

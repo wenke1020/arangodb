@@ -70,7 +70,7 @@ function NewAqlReplaceORWithINTestSuite () {
     setUp : function () {
       internal.debugClearFailAt();
       internal.db._drop("UnitTestsNewAqlReplaceORWithINTestSuite");
-      replace = internal.db._create("UnitTestsNewAqlReplaceORWithINTestSuite");
+      replace = internal.db._create("UnitTestsNewAqlReplaceORWithINTestSuite", {numberOfShards: 4});
 
       for (var i = 1; i <= 10; ++i) {
         replace.save({ "value" : i, x: [i]});

@@ -194,7 +194,7 @@ function arrayIndexSuite () {
 
     setUp : function () {
       this.tearDown();
-      col = db._create(cName);
+      col = db._create(cName, {numberOfShards: 4});
     },
 
     tearDown : function () {
@@ -581,7 +581,7 @@ function arrayIndexNonArraySuite () {
 
     setUp: function () {
       this.tearDown();
-      col = db._create(cName);
+      col = db._create(cName, {numberOfShards: 4});
     },
 
     tearDown: function () {

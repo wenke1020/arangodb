@@ -58,9 +58,9 @@ function ahuacatlCrossCollection () {
       db._drop(vn2);
       db._drop(en);
 
-      vertex1 = db._create(vn1);
-      vertex2 = db._create(vn2);
-      edge = db._createEdgeCollection(en);
+      vertex1 = db._create(vn1, {numberOfShards: 4});
+      vertex2 = db._create(vn2, {numberOfShards: 4});
+      edge = db._createEdgeCollection(en, {numberOfShards: 4});
     },
 
 ////////////////////////////////////////////////////////////////////////////////

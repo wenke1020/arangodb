@@ -49,7 +49,7 @@ function ahuacatlComplexTestSuite () {
 
     setUp : function () {
       internal.db._drop("UnitTestsAhuacatlNumbers");
-      numbers = internal.db._create("UnitTestsAhuacatlNumbers");
+      numbers = internal.db._create("UnitTestsAhuacatlNumbers", {numberOfShards: 4});
 
       for (var i = 1; i <= 100; ++i) {
         numbers.save({ "value" : i });

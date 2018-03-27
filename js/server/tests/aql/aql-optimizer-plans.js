@@ -43,7 +43,7 @@ function optimizerPlansTestSuite () {
     setUp : function () {
       internal.debugClearFailAt();
       db._drop("UnitTestsCollection");
-      c = db._create("UnitTestsCollection");
+      c = db._create("UnitTestsCollection", {numberOfShards: 4});
 
       for (var i = 0; i < 150; ++i) {
         c.save({ _key: "test" + i, value: i });

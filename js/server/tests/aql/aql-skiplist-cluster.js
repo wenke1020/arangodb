@@ -52,7 +52,7 @@ function ahuacatlSkiplistTestSuite () {
 
     setUp : function () {
       internal.db._drop("UnitTestsAhuacatlSkiplist");
-      skiplist = internal.db._create("UnitTestsAhuacatlSkiplist");
+      skiplist = internal.db._create("UnitTestsAhuacatlSkiplist", {numberOfShards: 4});
 
       for (var i = 1; i <= 5; ++i) {
         for (var j = 1; j <= 5; ++j) {

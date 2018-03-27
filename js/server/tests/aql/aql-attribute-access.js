@@ -162,7 +162,7 @@ function nestedAttributeAccessTestSuite () {
     ////////////////////////////////////////////////////////////////////////////////
 
     setUp : function () {
-      c = db._create(cn);
+      c = db._create(cn, {numberOfShards: 4});
       var i;
       for (i = 0; i < 3 ; i ++) {
         c.save(values[i]);
