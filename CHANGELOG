@@ -1,3 +1,11 @@
+v3.3.6 (XXXX-XX-XX)
+-------------------
+
+* fixed an issue where SORT clause in cluster was not handled correctly.
+  It does only show up, if the SORT clause is early in the query (in explain
+  it has to be above the last node moved onto the `DBServer`), and we sort
+  by attributes on intermediate results, not the result itself, eg: SORT x.a ASC
+
 v3.3.5 (2018-03-28)
 -------------------
 
