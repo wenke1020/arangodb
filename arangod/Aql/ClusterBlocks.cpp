@@ -31,6 +31,7 @@
 #include "Aql/ExecutionEngine.h"
 #include "Aql/ExecutionStats.h"
 #include "Aql/Query.h"
+#include "Basics/ConditionLocker.h"
 #include "Basics/Exceptions.h"
 #include "Basics/StaticStrings.h"
 #include "Basics/StringBuffer.h"
@@ -272,23 +273,48 @@ AqlItemBlock* GatherBlock::getSome(size_t atLeast, size_t atMost) {
   // the non-simple case . . .
   size_t available = 0;  // nr of available rows
   size_t index = 0;      // an index of a non-empty buffer
-	  
+ 
   // pull more blocks from dependencies . . .
   TRI_ASSERT(_gatherBlockBuffer.size() == _dependencies.size());
   TRI_ASSERT(_gatherBlockBuffer.size() == _gatherBlockPos.size());
  
+  size_t done = 0;
+  auto ioService = SchedulerFeature::SCHEDULER->ioService();
+#warning Remove Debug Output
+  LOG_TOPIC(ERR, Logger::FIXME) << "DEPS: " << _dependencies.size();
+
   for (size_t i = 0; i < _dependencies.size(); ++i) {
     if (_gatherBlockBuffer[i].empty()) {
-      if (getBlock(i, atLeast, atMost)) {
-        index = i;
-        _gatherBlockPos[i] = std::make_pair(i, 0);
-      }
+#warning Remove Debug Output
+      ioService->post([this, i, atLeast, atMost, &done]() {
+        LOG_TOPIC(ERR, Logger::FIXME) << "FETCHING #" << i;
+        if (getBlock(i, atLeast, atMost)) {
+          _gatherBlockPos[i] = std::make_pair(i, 0);
+        }
+#warning Remove Debug Output
+        LOG_TOPIC(ERR, Logger::FIXME) << "FETCHED #" << i;
+        CONDITION_LOCKER(guard, _shardsDoneCondition);
+        ++done;
+        guard.signal();
+      });
     } else {
-      index = i;
+      CONDITION_LOCKER(guard, _shardsDoneCondition);
+      ++done;
     }
+  }
 
+  while (true) {
+    CONDITION_LOCKER(guard, _shardsDoneCondition);
+    if (done == _dependencies.size()) {
+      break;
+    }
+    guard.wait(100000);
+  }
+ 
+  for (size_t i = 0; i < _dependencies.size(); i++) {
     auto const& cur = _gatherBlockBuffer[i];
     if (!cur.empty()) {
+      index = i;
       TRI_ASSERT(cur[0]->size() >= _gatherBlockPos[i].second);
       available += cur[0]->size() - _gatherBlockPos[i].second;
       for (size_t j = 1; j < cur.size(); ++j) {
@@ -316,7 +342,7 @@ AqlItemBlock* GatherBlock::getSome(size_t atLeast, size_t atMost) {
   };
 
   TRI_ASSERT(!_gatherBlockBuffer.at(index).empty());
-  AqlItemBlock* example = _gatherBlockBuffer.at(index).front();
+  AqlItemBlock* example = _gatherBlockBuffer[index].front();
   size_t nrRegs = example->getNrRegs();
 
   // automatically deleted if things go wrong
@@ -483,7 +509,8 @@ bool GatherBlock::getBlock(size_t i, size_t atLeast, size_t atMost) {
   TRI_ASSERT(i < _dependencies.size());
   TRI_ASSERT(!_isSimple);
 
-  std::unique_ptr<AqlItemBlock> docs(_dependencies.at(i)->getSome(atLeast, atMost));
+  std::unique_ptr<AqlItemBlock> docs(_dependencies[i]->getSome(atLeast, atMost));
+
   if (docs != nullptr && docs->size() > 0) {
     _gatherBlockBuffer.at(i).emplace_back(docs.get());
     docs.release();

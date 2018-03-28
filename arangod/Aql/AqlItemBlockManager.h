@@ -25,6 +25,7 @@
 #define ARANGOD_AQL_AQL_ITEM_BLOCK_MANAGER_H 1
 
 #include "Basics/Common.h"
+#include "Basics/Mutex.h"
 #include "Aql/types.h"
 
 #include <array>
@@ -53,6 +54,7 @@ class AqlItemBlockManager {
   ResourceMonitor* resourceMonitor() const { return _resourceMonitor; }
 
  private:
+  Mutex _lock;
   ResourceMonitor* _resourceMonitor;
     
   static constexpr size_t NumBuckets = 12;

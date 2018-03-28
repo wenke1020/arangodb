@@ -23,6 +23,7 @@
 
 #include "AqlItemBlockManager.h"
 #include "Aql/AqlItemBlock.h"
+#include "Basics/MutexLocker.h"
 
 using namespace arangodb::aql;
 
@@ -41,6 +42,8 @@ AqlItemBlock* AqlItemBlockManager::requestBlock(size_t nrItems,
 
   AqlItemBlock* block = nullptr;
   size_t i = Bucket::getId(targetSize);
+  
+  MUTEX_LOCKER(mutex, _lock);
 
   int tries = 0;
   while (tries++ < 2) {
@@ -80,6 +83,8 @@ void AqlItemBlockManager::returnBlock(AqlItemBlock*& block) {
   size_t const targetSize = block->size() * block->getNrRegs();
   size_t const i = Bucket::getId(targetSize);
   TRI_ASSERT(i < NumBuckets);
+  
+  MUTEX_LOCKER(mutex, _lock);
 
   if (!_buckets[i].full()) {
     // recycle the block

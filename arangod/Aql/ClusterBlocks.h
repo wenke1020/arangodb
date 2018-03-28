@@ -25,6 +25,7 @@
 #define ARANGOD_AQL_CLUSTER_BLOCKS_H 1
 
 #include "Basics/Common.h"
+#include "Basics/ConditionVariable.h"
 #include "Aql/ClusterNodes.h"
 #include "Aql/ExecutionBlock.h"
 #include "Aql/ExecutionNode.h"
@@ -97,6 +98,8 @@ class GatherBlock : public ExecutionBlock {
 
   /// @brief isSimple: the block is simple if we do not do merge sort . . .
   bool const _isSimple;
+    
+  basics::ConditionVariable _shardsDoneCondition;
 
   /// @brief OurLessThan: comparison method for elements of _gatherBlockPos
   class OurLessThan {

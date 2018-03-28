@@ -31,12 +31,17 @@ namespace arangodb {
 namespace aql {
 
 struct ResourceUsage {
-  constexpr ResourceUsage() : memoryUsage(0) {}
+  ResourceUsage() : memoryUsage(0) {}
   explicit ResourceUsage(size_t memoryUsage) : memoryUsage(memoryUsage) {}
+  ResourceUsage(ResourceUsage const& other) : memoryUsage(other.memoryUsage.load()) {}
+  ResourceUsage& operator=(ResourceUsage const& other) {
+    memoryUsage = other.memoryUsage.load();
+    return *this;
+  }
 
   void clear() { memoryUsage = 0; }
    
-  size_t memoryUsage;
+  std::atomic<size_t> memoryUsage;
 };
 
 struct ResourceMonitor {
