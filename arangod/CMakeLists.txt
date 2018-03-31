@@ -319,6 +319,14 @@ SET(ARANGOD_SOURCES
   Graph/TraverserDocumentCache.cpp
   Graph/Traverser.cpp
   Graph/TraverserOptions.cpp
+  Hydra/Algorithms.cpp
+  Hydra/Conductor.cpp
+  Hydra/HydraFeature.cpp
+  Hydra/JobContext.cpp
+  Hydra/RestHydraHandler.cpp
+  Hydra/Mailbox.cpp
+  Hydra/ShardingInfo.cpp
+  Hydra/io/CollectionSource.cpp
   Indexes/Index.cpp
   Indexes/IndexFactory.cpp
   Indexes/IndexIterator.cpp

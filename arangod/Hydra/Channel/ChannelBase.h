@@ -23,25 +23,33 @@
 #ifndef ARANGODB_HYDRA_CHANNEL_BASE_H
 #define ARANGODB_HYDRA_CHANNEL_BASE_H 1
 
-#include <velocypack/Buffer.h>
 #include "Basics/Common.h"
+
+#if defined(__clang__) || defined(__GNUG__) || defined(_MSC_VER)
+#define HYDRA_CHANNEL_ID  __COUNTER__
+#else
+#error Unsupported compiler
+#endif
 
 namespace arangodb {
 namespace hydra {
 
+  class Mailbox;
+  class ShardingBase;
+  
   typedef uint64_t ChannelId;
+  typedef uint64_t ChannelProgress;
 
   class ChannelBase {
   public:
     enum class ChannelType { Sync, Async };
-    enum class ChannelState { Undefined, Sending, Flushed}
     
     virtual ~ChannelBase() = default;
     
     /// Getter
     inline ChannelId id() const { return _channelId; }
     inline ChannelType channelType() const { return _type; }
-    inline ChannelState state() const { return _state; }
+    inline ChannelProgress progress() const { return _progress; }
 
     /*void set_as_async_channel();
     void set_as_sync_channel();*/
@@ -49,13 +57,13 @@ namespace hydra {
     /// prepare() needs to be invoked to do some preparation work (if any), such as clearing buffers,
     /// before it can take new incoming communication using the in(BinStream&) method.
     /// In list_execute (in core/executor.hpp), prepare() is usually used before any in(BinStream&).
-    virtual void prepare() {}
+    virtual void prepare() = 0;
     
     /// in(Bufffer const&) defines what the channel should do when receiving a binstream
-    virtual void in(velocypack::Buffer<uint8_t> const& bin) {}
+    virtual void in(velocypack::Buffer<uint8_t> const& bin) = 0;
     
     /// out() defines what the channel should do after a list_execute, normally mailbox->send_complete() will be invoked
-    virtual void out() {}
+    virtual void out() = 0
     
   protected:
     ChannelBase(ShardingBase* sharding);
@@ -68,7 +76,7 @@ namespace hydra {
     
     ChannelId _channelId;
     ChannelType _type;
-    ChannelState _state;
+    ChannelProgress _progress;
     
     Mailbox* _mailbox = nullptr;
     ShardingBase* _sharding;

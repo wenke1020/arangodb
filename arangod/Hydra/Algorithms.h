@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2018 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -20,26 +20,19 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_PREGEL_REGISTRY_H
-#define ARANGODB_PREGEL_REGISTRY_H 1
+#ifndef ARANGODB_HYDRA_ALGORITHMS_H
+#define ARANGODB_HYDRA_ALGORITHMS_H 1
 
-#include <string>
-#include "Algorithm.h"
-#include "Worker.h"
+#include <velocypack/Slice.h>
 
-struct TRI_vocbase_t;
 namespace arangodb {
-namespace pregel {
-struct AlgoRegistry {
-  static IAlgorithm* createAlgorithm(std::string const& algorithm,
-                                     VPackSlice userParams);
-  static std::unique_ptr<IWorker> createWorker(TRI_vocbase_t* vocbase, VPackSlice body);
+namespace hydra {
 
- private:
-  template <typename V, typename E, typename M>
-  static std::unique_ptr<IWorker> createWorker(TRI_vocbase_t* vocbase, Algorithm<V, E, M>* algo,
-                                               VPackSlice body);
-};
+namespace algorithms {
+bool validate(velocypack::Slice const&);
+std::function<void(velocypack::Slice const&)> resolve(velocypack::Slice const&);
 }
+
+} // namespace hydra
 }
 #endif

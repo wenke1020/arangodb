@@ -20,20 +20,4 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_HYDRA_CHANNEL_BASE_H
-#define ARANGODB_HYDRA_CHANNEL_BASE_H 1
-
-#include <velocypack/velocypack-aliases.h>
-#include <algorithm>
-#include "Basics/Common.h"
-
-namespace arangodb {
-namespace hydra {
-
-  class ChannelBase {
-    
-    
-  };
-}
-}
-#endif
+#include "Conductor.h"

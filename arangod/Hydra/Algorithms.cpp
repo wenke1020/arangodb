@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2018 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "Pregel/AlgoRegistry.h"
-#include "Pregel/Algos/AsyncSCC.h"
+#include "Hydra/Algorithms"
+/*#include "Pregel/Algos/AsyncSCC.h"
 #include "Pregel/Algos/ConnectedComponents.h"
 #include "Pregel/Algos/DMID/DMID.h"
 #include "Pregel/Algos/EffectiveCloseness/EffectiveCloseness.h"
@@ -34,12 +34,11 @@
 #include "Pregel/Algos/SLPA.h"
 #include "Pregel/Algos/SSSP.h"
 #include "Pregel/Algos/ShortestPath.h"
-#include "Pregel/Utils.h"
+#include "Pregel/Utils.h"*/
 
 using namespace arangodb;
-using namespace arangodb::pregel;
 
-IAlgorithm* AlgoRegistry::createAlgorithm(std::string const& algorithm,
+/*IAlgorithm* AlgoRegistry::createAlgorithm(std::string const& algorithm,
                                           VPackSlice userParams) {
   if (algorithm == "sssp") {
     return new algos::SSSPAlgorithm(userParams);
@@ -126,4 +125,4 @@ std::unique_ptr<IWorker> AlgoRegistry::createWorker(TRI_vocbase_t* vocbase, VPac
     
   THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER,
                                  "Unsupported algorithm");
-}
+}*/

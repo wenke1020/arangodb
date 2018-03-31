@@ -20,21 +20,19 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef ARANGODB_HYDRA_INPUT_SOURCE_H
+#define ARANGODB_HYDRA_INPUT_SOURCE_H 1
 
-#include "ShardingInfo.h"
-#include "Basics/fasthash.h"
+#include <functional>
 
-using namespace arangodb;
-
-hydra::CollectionSharding::CollectionSharding(std::string const& cname) : _collection(cname) {}
-
-std::string hydra::CollectionSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-  TRI_ASSERT(false);
+namespace arangodb {
+namespace hydra {
+  template<typename T>
+  struct InputSource {
+    virtual ~InputSource() = default;
+    virtual bool hasMore() const = 0;
+    virtual void next(std::function<T>const&) = 0;
+  };
 }
-
-
-std::string hydra::SimpleSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-
-  uint64_t hash = fasthash(ptr, len, _seed);
-  
 }
+#endif

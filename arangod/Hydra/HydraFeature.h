@@ -20,65 +20,39 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_PREGEL_FEATURE_H
-#define ARANGODB_PREGEL_FEATURE_H 1
+#ifndef ARANGODB_HYDRA_FEATURE_H
+#define ARANGODB_HYDRA_FEATURE_H 1
 
 #include <cstdint>
 #include "ApplicationFeatures/ApplicationFeature.h"
 #include "Basics/Common.h"
 #include "Basics/Mutex.h"
+#include "Hydra/JobContext.h"
 
-struct TRI_vocbase_t;
 namespace arangodb {
-namespace pregel {
+namespace hydra {
 
-class Conductor;
-class IWorker;
-class RecoveryManager;
 
-class PregelFeature final : public application_features::ApplicationFeature {
+class HydraFeature final : public application_features::ApplicationFeature {
  public:
-  explicit PregelFeature(application_features::ApplicationServer* server);
-  ~PregelFeature();
+  explicit HydraFeature(application_features::ApplicationServer* server);
+  HydraFeature();
 
-  static PregelFeature* instance();
+  static HydraFeature* instance();
   static size_t availableParallelism();
 
   void start() override final;
   void beginShutdown() override final;
 
-  uint64_t createExecutionNumber();
-  void addConductor(std::unique_ptr<Conductor>&&, uint64_t executionNumber);
-  std::shared_ptr<Conductor> conductor(uint64_t executionNumber);
+  void addJob(std::unique_ptr<JobContext>&&);
+  JobBase* job(uint64_t);
 
-  void addWorker(std::unique_ptr<IWorker>&&, uint64_t executionNumber);
-  std::shared_ptr<IWorker> worker(uint64_t executionNumber);
-
-  void cleanupConductor(uint64_t executionNumber);
-  void cleanupWorker(uint64_t executionNumber);
+  void cleanupJob(uint64_t executionNumber);
   void cleanupAll();
-
-  // ThreadPool* threadPool() { return _threadPool.get(); }
-  RecoveryManager* recoveryManager() {
-    if (_recoveryManager) {
-      return _recoveryManager.get();
-    }
-    return nullptr;
-  }
-
-  static void handleConductorRequest(std::string const& path,
-                                     VPackSlice const& body,
-                                     VPackBuilder& outResponse);
-  static void handleWorkerRequest(TRI_vocbase_t* vocbase,
-                                  std::string const& path,
-                                  VPackSlice const& body,
-                                  VPackBuilder& outBuilder);
 
  private:
   Mutex _mutex;
-  std::unique_ptr<RecoveryManager> _recoveryManager;
-  std::unordered_map<uint64_t, std::shared_ptr<Conductor>> _conductors;
-  std::unordered_map<uint64_t, std::shared_ptr<IWorker>> _workers;
+  std::unordered_map<uint64_t, std::unique_ptr<JobContext>> _jobs;
 };
 }
 }

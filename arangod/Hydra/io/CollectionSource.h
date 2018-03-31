@@ -20,21 +20,35 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef ARANGODB_HYDRA_COLLECTION_SOURCE_H
+#define ARANGODB_HYDRA_COLLECTION_SOURCE_H 1
 
-#include "ShardingInfo.h"
-#include "Basics/fasthash.h"
+#include "Hydra/io/InputSource.h"
+#include <string>
+#include <velocypack/Slice.h>
 
-using namespace arangodb;
-
-hydra::CollectionSharding::CollectionSharding(std::string const& cname) : _collection(cname) {}
-
-std::string hydra::CollectionSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-  TRI_ASSERT(false);
+struct TRI_vocbase_t;
+namespace arangodb {
+namespace transaction {
+  class Methods;
 }
-
-
-std::string hydra::SimpleSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-
-  uint64_t hash = fasthash(ptr, len, _seed);
+class OperationCursor;
   
+namespace hydra {
+  class CollectionSource : public InputSource<velocypack::Slice const&> {
+  public:
+    CollectionSource(transaction::Methods*, std::string const& cname);
+    CollectionSource(TRI_vocbase_t* vocbase, std::string const& cname);
+    ~CollectionSource();
+    
+    bool hasMore() const override;
+    void next(std::function<velocypack::Slice const& >const&) override;
+    
+  private:
+    bool _ownsTransaction;
+    transaction::Methods* _trx;
+    std::unique_ptr<OperationCursor> _cursor;
+  };
 }
+}
+#endif

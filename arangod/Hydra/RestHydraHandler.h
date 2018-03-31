@@ -20,21 +20,31 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifndef ARANGODB_HYDRA_CHANNEL_BASE_H
+#define ARANGODB_HYDRA_CHANNEL_BASE_H 1
 
-#include "ShardingInfo.h"
-#include "Basics/fasthash.h"
+#include <velocypack/velocypack-aliases.h>
+#include <algorithm>
+#include "Basics/Common.h"
 
-using namespace arangodb;
+namespace arangodb {
+namespace hydra {
 
-hydra::CollectionSharding::CollectionSharding(std::string const& cname) : _collection(cname) {}
-
-std::string hydra::CollectionSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-  TRI_ASSERT(false);
-}
-
-
-std::string hydra::SimpleSharding::lookupTargetInternal(void const* ptr, size_t len) const {
-
-  uint64_t hash = fasthash(ptr, len, _seed);
+class RestHydraHandler : public arangodb::RestVocbaseBaseHandler {
+  public:
+    explicit RestHydraHandler(GeneralRequest*, GeneralResponse*);
+    
+  public:
+    bool isDirect() const override { return false; }
+    RestStatus execute() override;
+    char const* name() const override {return "HydraHandler";}
   
+  private:
+  
+   void handleJobControl();
+   void handleNotify();
+   void handleMailbox();
+};
 }
+}
+#endif

@@ -23,27 +23,53 @@
 #ifndef ARANGODB_HYDRA_CHANNEL_BASE_H
 #define ARANGODB_HYDRA_CHANNEL_BASE_H 1
 
-#include <velocypack/velocypack-aliases.h>
-#include <algorithm>
 #include "Basics/Common.h"
 #include "Basics/Mutex.h"
 
+#include <velocypack/Buffer.h>
 
 namespace arangodb {
 namespace hydra {
+  
+  class JobContext;
 
-/// Acts as a receiver for messages send by other workers
-/// Channels can poll the mailbox for their input
+/// Acts as a receiver for messages and data send by other workers
+/// Channels can poll the mailbox for their input. The mailbox should
+/// abstract away all communicationdetails
 class Mailbox {
   
-  void push(ChannelId, velocypack::Slice const&);
+  Mailbox(JobContext*);
   
-  void poll(std::vector<ChannelId> const& channels,
-            double timeout);
+  void receive(ChannelId, ChannelProgress, velocypack::Slice const&);
+  void receiveCompleted(ChannelId, ChannelProgress);
+
+  void send(std::string const& dst, ChannelId, ChannelProgress,
+            velocypack::Slice const&);
+  void sendCompleted(std::string const& dst, ChannelId, ChannelProgress);
+  
+  void poll(ChannelId, ChannelProgress, double timeout);
+  
+private:
+  
+  struct ChannelState {
+    ChannelState() : _progress(0) {}
     
-  protected:
-    std::unordered_map<ChannelId,std::queue<velocypack::Buffer<uint8_t>>> _inbuffers;
+    /// current progress generation
+    std::atomic<ChannelProgress> _progress;
+    /// actual data received for this progress generation
+    std::unordered_map<size_t, velocypack::Buffer<uint8_t>> _buffers;
+    /// number of completed server responses per progress
+    std::unordered_map<ChannelProgress, int> _completedCount;
+    /// is current progress finished
+    std::vector<bool> _progressDone;
   };
+  
+  JobContext* _context;
+  
+    ConditionVariable _condition;
+    std::unordered_map<ChannelId, ChannelState> _channels;
+};
+  
 } // namespace hydra
 }
 #endif

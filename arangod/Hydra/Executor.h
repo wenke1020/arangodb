@@ -20,49 +20,48 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_HYDRA_SHARDING_H
-#define ARANGODB_HYDRA_SHARDING_H 1
+#ifndef ARANGODB_HYDRA_JOB_BASE_H
+#define ARANGODB_HYDRA_JOB_BASE_H 1
+
+#include "Hydra/InputFormat.h"
+#include "Hydra/DataFrame.h"
 
 #include <cstdint>
-#include <string>
-
-struct TRI_vocbase_t;
+#include <velocypack/Builder.h>
 
 namespace arangodb {
 namespace hydra {
-
-/// Sharding interface to handle sharding in a transparent way
-class ShardingBase {
- public:
   
-  virtual ~ShardingBase() = default;
+namespace execute {
   
-  template<typename KeyT>
-  std::string lookupTarget(KeyT const& key) const {
-    lookupTargetInternal(&key, sizeof(KeyT));
+  template<typename InFmtT, >
+  ObjList<InFmtT> loadInput(InputSource<InFmtT> const& list) {
+    
   }
   
-protected:
-  virtual std::string lookupTargetInternal(void const* ptr, size_t len) const = 0;
-};
+  template<typename InFmtT, typename ParseT, typename ObjT>
+  ObjList<ObjT> loadInput(InputSource<InFmtT> const& list, ParseT const& parse) {
+    static_assert(std::is_same<std::result_of(ParseT(InFmtT)), ObjT>::value);
+  }
   
-class CollectionSharding : public ShardingBase {
-   CollectionSharding(TRI_vocbase_t* vocbase, std::string const& cname);
-   
-   std::string lookupTargetInternal(void const* ptr, size_t len) const;
- private:
-  TRI_vocbase_t* vocbase;
-   std::string const _collection;
-};
+  template<typename ObjT, typename FuncT>
+  void foreach(InputSource<ObjT> const& list, FuncT const& func) {
+    
+  }
+    
+  template<typename ObjT, typename FuncT>
+  void foreach(DataFrame<ObjT> const& list, FuncT const& func) {
+    
+  }
   
-class SimpleSharding : public ShardingBase {
-  SimpleSharding(uint64_t seed) : _seed(seed) {}
+  template<typename FromT, typename ToT, typename MapT>
+  ObjList<ToT> map(DataFrame<FromT> const& list, MapT const& map) {
+    static_assert(std::is_same<std::result_of(MapT(FromT,)), ToT>::value);
+    
+  }
   
-  std::string lookupTargetInternal(void const* ptr, size_t len) const;
-private:
-  uint64_t const _seed;
-};
+  
 
+}  // namespace execute
 }  // namespace hydra
 }  // namespace arangodb
-#endif
