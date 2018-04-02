@@ -20,20 +20,24 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_HYDRA_CHANNEL_STORE_H
-#define ARANGODB_HYDRA_CHANNEL_STORE_H 1
+#ifndef ARANGODB_HYDRA_COMMON_H
+#define ARANGODB_HYDRA_COMMON_H 1
 
-#include <string>
 
-#include "Hydra/Channel/ChannelBase.h"
+#if defined(__clang__) || defined(__GNUG__) || defined(_MSC_VER)
+#define HYDRA_CHANNEL_ID  __COUNTER__
+#else
+#error Unsupported compiler
+#endif
 
+namespace arangodb {
 namespace hydra {
 
-class ChannelStore {
-   public:
+  typedef uint64_t ChannelId;
+  typedef uint64_t ChannelProgress;
+  typedef uint64_t JobId;
   
-private:
-  std::unordered_map<ChannelId, ChannelBase*> _channels;
-};
-
-}  // namespace hydra
+  
+}
+}
+#endif

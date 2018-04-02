@@ -26,6 +26,7 @@
 #include <velocypack/velocypack-aliases.h>
 #include <algorithm>
 #include "Basics/Common.h"
+#include "RestHandler/RestVocbaseBaseHandler.h"
 
 namespace arangodb {
 namespace hydra {

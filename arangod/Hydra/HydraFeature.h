@@ -27,16 +27,16 @@
 #include "ApplicationFeatures/ApplicationFeature.h"
 #include "Basics/Common.h"
 #include "Basics/Mutex.h"
-#include "Hydra/JobContext.h"
 
 namespace arangodb {
 namespace hydra {
 
+class JobContext;
 
 class HydraFeature final : public application_features::ApplicationFeature {
  public:
   explicit HydraFeature(application_features::ApplicationServer* server);
-  HydraFeature();
+  ~HydraFeature();
 
   static HydraFeature* instance();
   static size_t availableParallelism();
@@ -45,7 +45,7 @@ class HydraFeature final : public application_features::ApplicationFeature {
   void beginShutdown() override final;
 
   void addJob(std::unique_ptr<JobContext>&&);
-  JobBase* job(uint64_t);
+  JobContext* job(uint64_t);
 
   void cleanupJob(uint64_t executionNumber);
   void cleanupAll();

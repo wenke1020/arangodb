@@ -20,55 +20,62 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_HYDRA_JOB_BASE_H
-#define ARANGODB_HYDRA_JOB_BASE_H 1
+#ifndef ARANGODB_HYDRA_JOB_CONTEXT_H
+#define ARANGODB_HYDRA_JOB_CONTEXT_H 1
 
 #include <cstdint>
 #include <velocypack/Builder.h>
+#include "Hydra/Common.h"
 
+struct TRI_vocbase_t;
 namespace arangodb {
 namespace hydra {
   
-  class ChannelStore;
-  class ConductorBase;
-  class Mailbox;
-  
-typedef uint64_t JobId;
+class ConductorBase;
+class Mailbox;
   
 class JobContext final {
 public:
   
-  JobContext(JobId jid, velocypack::Slice const& params);
+  JobContext(JobId jid, TRI_vocbase_t*,
+             velocypack::Slice const& params);
   ~JobContext();
   
   inline JobId id() const { return _id; }
   inline bool canceled() const { return _canceled; }
-  inline velocypack::Slice const& params() const { _params.slice(); }
-  inline Coordinator* coordinator() const { return _coordinator; }
+  inline velocypack::Slice params() const { return _params.slice(); }
+  
+  inline TRI_vocbase_t* vocbase() const { return _vocbase; }
+  inline std::string const& serverId() const { return _serverId; }
+  inline std::vector<std::string> const& workers() const { return _workers; }
+  
+  inline ConductorBase* conductor() const { return _conductor; }
   inline Mailbox* mailbox() const { return _mailbox; }
+  
+  std::string apiPrefix() const;
   
   void start();
   void cancel();
   
-  
-  size_t numWorkerMachines() const;
-  
-  static inline JobContext* current() { return JobContext::current; }
+  static inline JobContext* current() { return hydra::JobContext::CONTEXT; }
   
   //inline std::string const& controllerHost();
   
 private:
   JobId const _id;
-  std::string _serverId;
   bool _canceled;
   velocypack::Builder _params;
   
-  ChannelStore* _channels;
+  TRI_vocbase_t* _vocbase;
+  std::string _serverId;
+  std::vector<std::string> _workers;
+  
   ConductorBase* _conductor;
   Mailbox* _mailbox;
   
-  static thread_local JobContext* current;
+  static thread_local JobContext* CONTEXT;
 };
 
 }  // namespace hydra
 }  // namespace arangodb
+#endif

@@ -26,13 +26,13 @@
 #include "Hydra/io/InputSource.h"
 #include <string>
 #include <velocypack/Slice.h>
+#include "Utils/OperationCursor.h"
 
 struct TRI_vocbase_t;
 namespace arangodb {
 namespace transaction {
   class Methods;
 }
-class OperationCursor;
   
 namespace hydra {
   class CollectionSource : public InputSource<velocypack::Slice const&> {
@@ -41,9 +41,16 @@ namespace hydra {
     CollectionSource(TRI_vocbase_t* vocbase, std::string const& cname);
     ~CollectionSource();
     
-    bool hasMore() const override;
-    void next(std::function<velocypack::Slice const& >const&) override;
+    bool hasMore() const override {
+      return _cursor->hasMore();
+    }
     
+    bool next(std::function<void(velocypack::Slice const&)> const& func, size_t batch) override {
+      return _cursor->nextDocument([&func](LocalDocumentId const& id, VPackSlice const& doc) {
+        func(doc);
+      }, batch);
+    }
+
   private:
     bool _ownsTransaction;
     transaction::Methods* _trx;

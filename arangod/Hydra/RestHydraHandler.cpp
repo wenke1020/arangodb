@@ -23,7 +23,11 @@
 #include "RestHydraHandler.h"
 
 #include "ApplicationFeatures/ApplicationServer.h"
+#include "Cluster/ServerState.h"
+#include "Hydra/Conductor.h"
+#include "Hydra/JobContext.h"
 #include "Hydra/HydraFeature.h"
+#include "VocBase/ticks.h"
 
 #include <velocypack/Builder.h>
 #include <velocypack/velocypack-aliases.h>
@@ -31,6 +35,8 @@
 using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
+using namespace arangodb::hydra;
+
 
 RestHydraHandler::RestHydraHandler(GeneralRequest* request, GeneralResponse* response)
 : RestVocbaseBaseHandler(request, response) {}
@@ -62,7 +68,7 @@ void RestHydraHandler::handleJobControl() {
   if (_request->requestType() != rest::RequestType::POST) {
     generateError(rest::ResponseCode::METHOD_NOT_ALLOWED,
                   TRI_ERROR_NOT_IMPLEMENTED, "illegal method for /_api/hydra/job");
-    return RestStatus::DONE;
+    return;
   }
   
   std::vector<std::string> const& suffix = _request->suffixes();
@@ -71,7 +77,6 @@ void RestHydraHandler::handleJobControl() {
   TRI_ASSERT(feature != nullptr);
   JobId jid = _request->parsedValue("job", static_cast<ChannelId>(0));
 
-  
   if (suffix[1] == "create") { // Public
     
     bool parseSuccess = true;
@@ -81,22 +86,20 @@ void RestHydraHandler::handleJobControl() {
       return;
     }
     
-    bool isMaster = ServerState::instance->isSingleServerOrCoordinator();
-    if (isMaster) {
+    if (ServerState::instance()->isSingleServerOrCoordinator()) {
       jid = TRI_newServerTick();
+#warning determine target servers and stuff like that on job context creation
     } else if (jid == 0) {
       generateError(rest::ResponseCode::BAD,
                     TRI_ERROR_BAD_PARAMETER, "invalid job id");
       return;
     }
-    std::make_unique<JobContext> ctx = (jid, body);
-    feature->addJob(std::move(ctx));
+  
+    feature->addJob(std::make_unique<JobContext>(jid, body));
     
-    if (isMaster) {
-      JobContext* job = feature->job(jid);
-      TRI_ASSERT(job);
-      job->conductor()->startJob(); // trigger start job
-    }
+    JobContext* job = feature->job(jid);
+    TRI_ASSERT(job);
+    job->conductor()->startJob(); // trigger start job
     
   } else if (suffix[1] == "start") {  // internal
     
@@ -106,7 +109,7 @@ void RestHydraHandler::handleJobControl() {
                     TRI_ERROR_BAD_PARAMETER, "invalid job id");
       return;
     }
-    job->start();
+    job->conductor()->startJob();
     
   } else if (suffix[1] == "cancel") {  // public
     JobContext* job = feature->job(jid);
@@ -115,7 +118,7 @@ void RestHydraHandler::handleJobControl() {
                     TRI_ERROR_BAD_PARAMETER, "invalid job id");
       return;
     }
-    job->cancel();
+    job->conductor()->cancelJob();
   }
   
   VPackBuilder builder;
@@ -123,8 +126,8 @@ void RestHydraHandler::handleJobControl() {
   //builder.add("algorithm", VPackValue(jid));
   builder.add("jobId", VPackValue(jid));
   builder.close();
-  generateOk(builder.slice());
   
+  generateOk(rest::ResponseCode::OK, builder.slice());
 }
 
 void RestHydraHandler::handleNotify() {
@@ -163,7 +166,12 @@ void RestHydraHandler::handleNotify() {
   if (suffix[0] == "canceled") {
     std::string host = body.get("sender").copyString();
     job->conductor()->notifyCanceledJob(host);
-    generateOk(VPackSlice::nullSlice());
+    
+    VPackBuilder builder;
+    builder.openObject();
+    builder.add("jobId", VPackValue(jid));
+    builder.close();
+    generateOk(rest::ResponseCode::OK, builder.slice());
   } else {
     generateError(rest::ResponseCode::BAD,
                   TRI_ERROR_BAD_PARAMETER, "unsupported path");
@@ -204,4 +212,10 @@ void RestHydraHandler::handleMailbox() {
   } else (suffix[1] == "done") {
     job->mailbox->receive(chan, prg);
   }
+  
+  VPackBuilder builder;
+  builder.openObject();
+  builder.add("jobId", VPackValue(jid));
+  builder.close();
+  generateOk(rest::ResponseCode::OK, builder.slice());
 }

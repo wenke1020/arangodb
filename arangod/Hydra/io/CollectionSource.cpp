@@ -24,7 +24,6 @@
 #include "Transaction/Methods.h"
 #include "Transaction/StandaloneContext.h"
 #include "Utils/SingleCollectionTransaction.h"
-#include "Utils/OperationCursor.h"
 #include "Utils/OperationResult.h"
 #include "VocBase/vocbase.h"
 
@@ -55,15 +54,3 @@ hydra::CollectionSource::~CollectionSource() {
     delete _trx;
   }
 }
-
-
-bool hydra::CollectionSource::hasNext() const {
-  return _cursor->hasMore();
-}
-
-void hydra::CollectionSource::next(std::function<velocypack::Slice const& >const& func) {
-  _cursor->nextDocument([&func](LocalDocumentId const& id, VPackSlice const& doc) {
-    func(doc);
-  }, 1000);
-}
-

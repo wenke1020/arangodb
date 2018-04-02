@@ -31,7 +31,7 @@ namespace hydra {
   struct InputSource {
     virtual ~InputSource() = default;
     virtual bool hasMore() const = 0;
-    virtual void next(std::function<T>const&) = 0;
+    virtual bool next(std::function<void(T)>const&, size_t batch) = 0;
   };
 }
 }

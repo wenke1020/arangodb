@@ -20,7 +20,7 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "Hydra/Algorithms"
+#include "Hydra/Algorithms.h"
 /*#include "Pregel/Algos/AsyncSCC.h"
 #include "Pregel/Algos/ConnectedComponents.h"
 #include "Pregel/Algos/DMID/DMID.h"

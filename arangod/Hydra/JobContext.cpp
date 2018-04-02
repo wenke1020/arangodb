@@ -23,56 +23,60 @@
 #include "JobContext.h"
 
 #include "Basics/Common.h"
+#include "Cluster/ServerState.h"
+#include "Hydra/Algorithms.h"
 #include "Hydra/Conductor.h"
 #include "Hydra/Mailbox.h"
-#include "Hydra/ChannelStore.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/SchedulerFeature.h"
+#include "VocBase/vocbase.h"
+
+#include "Logger/Logger.h"
 
 using namespace arangodb;
 
-thread_local hydra::JobContext* hydra::JobContext::current = nullptr;
-
-
-hydra::JobContext::JobContext(JobId jid, velocypack::Slice const& params) : _id(jid), _serverId(""),
-  _canceled(false), _params(params) {
+hydra::JobContext::JobContext(JobId jid, TRI_vocbase_t* vocbase, velocypack::Slice const& params)
+: _id(jid), _canceled(false), _params(params), _vocbase(vocbase), _serverId("")
+    {
   
-  if (!hydra::algorithms::validate(params.slice())) {
+  VPackSlice algo = params.get("algorithm");
+  if (!hydra::algorithms::validate(algo)) {
     THROW_ARANGO_EXCEPTION(TRI_ERROR_BAD_PARAMETER);
   }
-  _serverId = ServerState::instance()->id();
-  _channels = new ChannelStore();
+  _serverId = ServerState::instance()->getId();
   
-  if (ServerState::instance()->isCoordinator()) {
-    // FIXME
-    _coordinator = nullptr;
-  } else if (ServerState::instance->isDBServer()) {
+  if (ServerState::instance()->isSingleServerOrCoordinator()) {
+    _conductor = new ConductorImpl(this);
+  } else if (ServerState::instance()->isDBServer()) {
     VPackSlice coordinator = params.get("coordinator");
     if (!coordinator.isString()) {
       THROW_ARANGO_EXCEPTION(TRI_ERROR_BAD_PARAMETER);
     }
-    _conductor = new ConductorConnection(coordinator.copyString());
-  } else if (ServerState::instance->isSingleServer()) {
-    _conductor = new ConductorImpl();
+    _conductor = new ConductorConnection(this, coordinator.copyString());
+  } else {
+    TRI_ASSERT(false);
   }
   _mailbox = new Mailbox(this);
 }
 
 hydra::JobContext::~JobContext() {
-  delete _channels;
-  delete _coordinator;
+  delete _conductor;
   delete _mailbox;
 }
 
-hydra::JobContext::start() {
+std::string hydra::JobContext::apiPrefix() const {
+  return "/_db/" + basics::StringUtils::urlEncode(_vocbase->name()) + "/hydra/";
+}
+
+void hydra::JobContext::start() {
   if (SchedulerFeature::SCHEDULER->isStopping()) {
     return; // shutdown ongoing
   }
   
-  ServerState::Role role = ServerState::instance()->role();
+  ServerState::RoleEnum role = ServerState::instance()->getRole();
   if (ServerState::isDBServer(role) ||
       ServerState::isSingleServer(role)) {
-    auto func = hydra::algorithms::resolve(params.slice());
+    auto func = hydra::algorithms::resolve(_params.slice());
     TRI_ASSERT(func); // algorithms::validate prevents this
     if (!func) {
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER,
@@ -81,23 +85,26 @@ hydra::JobContext::start() {
     
     rest::Scheduler* scheduler = SchedulerFeature::SCHEDULER;
     scheduler->post([this, func] {
-      JobContext::current = this;
-      TRI_DEFER(JobContext::current = nullptr);
-      func(_params.slice());
+      JobContext::CONTEXT = this;
+      TRI_DEFER(JobContext::CONTEXT = nullptr);
+      if (!_canceled) {
+        try {
+          func(_params.slice());
+        } catch(basics::Exception const& ex) {
+          LOG_TOPIC(WARN, Logger::FIXME) << "Error during excecution: " << ex.what();
+        }
+      }
     });
-    _conductor->notifyStartedJob(_serverId);
+    //_conductor-> notifyStartedJob(_serverId);
   } else if (ServerState::isCoordinator(role)) {
     _conductor->startJob();
   }
 }
 
 
-hydra::JobContext::cancel() {
+void hydra::JobContext::cancel() {
   if (SchedulerFeature::SCHEDULER->isStopping()) {
     return; // shutdown ongoing
   }
-  
   _canceled = true;
-  
-  
 }

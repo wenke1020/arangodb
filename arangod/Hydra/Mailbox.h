@@ -24,9 +24,11 @@
 #define ARANGODB_HYDRA_CHANNEL_BASE_H 1
 
 #include "Basics/Common.h"
-#include "Basics/Mutex.h"
+#include "Basics/ConditionVariable.h"
+#include "Hydra/Common.h"
 
 #include <velocypack/Buffer.h>
+#include <velocypack/Slice.h>
 
 namespace arangodb {
 namespace hydra {
@@ -37,7 +39,7 @@ namespace hydra {
 /// Channels can poll the mailbox for their input. The mailbox should
 /// abstract away all communicationdetails
 class Mailbox {
-  
+public:
   Mailbox(JobContext*);
   
   void receive(ChannelId, ChannelProgress, velocypack::Slice const&);
@@ -66,7 +68,7 @@ private:
   
   JobContext* _context;
   
-    ConditionVariable _condition;
+  basics::ConditionVariable _condition;
     std::unordered_map<ChannelId, ChannelState> _channels;
 };
   

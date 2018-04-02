@@ -25,16 +25,19 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
+#include <map>
 
 struct TRI_vocbase_t;
 
 namespace arangodb {
+class LogicalCollection;
 namespace hydra {
 
 /// Sharding interface to handle sharding in a transparent way
 class ShardingBase {
  public:
-  
+  ShardingBase() = default;
   virtual ~ShardingBase() = default;
   
   template<typename KeyT>
@@ -43,22 +46,26 @@ class ShardingBase {
   }
   
 protected:
-  virtual std::string lookupTargetInternal(void const* ptr, size_t len) const = 0;
+  virtual std::string const& lookupTargetInternal(void const* ptr, size_t len) const = 0;
 };
   
-class CollectionSharding : public ShardingBase {
-   CollectionSharding(TRI_vocbase_t* vocbase, std::string const& cname);
-   
-   std::string lookupTargetInternal(void const* ptr, size_t len) const;
- private:
-  TRI_vocbase_t* vocbase;
-   std::string const _collection;
+/// sharding after a primary key
+class PrimaryKeySharding final : public ShardingBase {
+public:
+  PrimaryKeySharding(TRI_vocbase_t* vocbase, std::string const& cname);
+  PrimaryKeySharding(LogicalCollection*);
+private:
+   std::string const& lookupTargetInternal(void const* ptr, size_t len) const override;
+private:
+  std::shared_ptr<std::vector<std::string>> _shards;
+  std::unordered_map<std::string, std::string> _servers;
 };
   
-class SimpleSharding : public ShardingBase {
-  SimpleSharding(uint64_t seed) : _seed(seed) {}
-  
-  std::string lookupTargetInternal(void const* ptr, size_t len) const;
+/// Sharding
+class SimpleSharding final : public ShardingBase {
+public:
+  SimpleSharding();
+  std::string const& lookupTargetInternal(void const* ptr, size_t len) const override;
 private:
   uint64_t const _seed;
 };

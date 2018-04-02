@@ -24,12 +24,7 @@
 #define ARANGODB_HYDRA_CHANNEL_BASE_H 1
 
 #include "Basics/Common.h"
-
-#if defined(__clang__) || defined(__GNUG__) || defined(_MSC_VER)
-#define HYDRA_CHANNEL_ID  __COUNTER__
-#else
-#error Unsupported compiler
-#endif
+#include "Hydra/Common.h"
 
 namespace arangodb {
 namespace hydra {
@@ -37,8 +32,6 @@ namespace hydra {
   class Mailbox;
   class ShardingBase;
   
-  typedef uint64_t ChannelId;
-  typedef uint64_t ChannelProgress;
 
   class ChannelBase {
   public:

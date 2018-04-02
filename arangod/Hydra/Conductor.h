@@ -23,6 +23,9 @@
 #ifndef ARANGODB_HYDRA_COORDINATOR_H
 #define ARANGODB_HYDRA_COORDINATOR_H 1
 
+#include <string>
+#include <velocypack/Slice.h>
+
 namespace arangodb {
 namespace hydra {
 
@@ -33,7 +36,8 @@ namespace hydra {
 class ConductorBase {
  public:
   
-  virtual ~CoordinatorBase() {}
+  ConductorBase(JobContext* jc) : _job(jc) {}
+  virtual ~ConductorBase() {}
   
   //virtual void sendBroadcast(velocypack::Slice const&) = 0;
   
@@ -44,29 +48,44 @@ class ConductorBase {
   //virtual void notifyStartedJob(std::string const& serverId) = 0;
   virtual void cancelJob() = 0;
   virtual void notifyCanceledJob(std::string const& serverId) = 0;
+protected:
+  JobContext* _job;
 };
   
-class ConductorConnection : public ConductorBase {
+class ConductorConnection final : public ConductorBase {
  public:
   
-  ConductorConnection(std::string const& server);
+  ConductorConnection(JobContext*,std::string const& server);
+  
+  void createJob(velocypack::Slice const&) override;
+  //virtual void notifyJobCreated(std::string const& serverId) = 0;
+  void startJob() override;
+  //virtual void notifyStartedJob(std::string const& serverId) = 0;
+  void cancelJob() override;
+  void notifyCanceledJob(std::string const& serverId) override;
   
 private:
-  std::string _coordinatorHost;
-  
+  std::string _conductorHost;
 };
   
 /// Actual conductor implementation,
 /// needs to track the number of responses
-class ConductorImpl : public ConductorBase {
+class ConductorImpl final : public ConductorBase {
 public:
   
-  ConductorConnection(JobContext*);
+  ConductorImpl(JobContext*);
+  
+  void createJob(velocypack::Slice const&) override;
+  //virtual void notifyJobCreated(std::string const& serverId) = 0;
+  void startJob() override;
+  //virtual void notifyStartedJob(std::string const& serverId) = 0;
+  void cancelJob() override;
+  void notifyCanceledJob(std::string const& serverId) override;
   
 private:
-  JobContext* _job;
   std::vector<std::string> _stoppedServers;
 };
 
 }  // namespace hydra
 }
+#endif

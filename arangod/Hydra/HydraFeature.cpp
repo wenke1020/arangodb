@@ -27,11 +27,12 @@
 #include "Cluster/ClusterFeature.h"
 #include "Cluster/ClusterInfo.h"
 #include "Cluster/ServerState.h"
+#include "Hydra/JobContext.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/SchedulerFeature.h"
 
 using namespace arangodb;
-using namespace arangodb::pregel;
+using namespace arangodb::hydra;
 
 static HydraFeature* Instance = nullptr;
 static std::atomic<uint64_t> _uniqueId;
@@ -48,10 +49,7 @@ HydraFeature::HydraFeature(application_features::ApplicationServer* server)
   startsAfter("Server");
 }
 
-HydraFeature::HydraFeature() {
-  if (_recoveryManager) {
-    _recoveryManager.reset();
-  }
+HydraFeature::~HydraFeature() {
   cleanupAll();
 }
 
@@ -65,19 +63,15 @@ size_t HydraFeature::availableParallelism() {
 }
 
 void HydraFeature::start() {
-  Instance = this;
   if (ServerState::instance()->isAgent()) {
     return;
   }
+  Instance = this;
 
   // const size_t threadNum = PregelFeature::availableParallelism();
   // LOG_TOPIC(DEBUG, Logger::PREGEL) << "Pregel uses " << threadNum << "
   // threads";
   //_threadPool.reset(new ThreadPool(threadNum, "Pregel"));
-
-  if (HydraFeature::instance()->isCoordinator()) {
-
-  }
 }
 
 void HydraFeature::beginShutdown() {
@@ -85,12 +79,12 @@ void HydraFeature::beginShutdown() {
   Instance = nullptr;
 }
 
-void HydraFeature::addJob(std::unique_ptr<JobBase>&& job) {
+void HydraFeature::addJob(std::unique_ptr<JobContext>&& job) {
   MUTEX_LOCKER(guard, _mutex);
   _jobs.emplace(job->id(), std::move(job));
 }
 
-JobBase* HydraFeature::job(uint64_t executionNumber) {
+JobContext* HydraFeature::job(uint64_t executionNumber) {
   if (SchedulerFeature::SCHEDULER->isStopping()) {
     return nullptr;
   }
