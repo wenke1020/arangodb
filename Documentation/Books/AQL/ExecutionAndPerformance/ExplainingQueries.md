@@ -49,7 +49,7 @@ profile.
 
 
     @startDocuBlockInline 01_workWithAQL_databaseProfileQuery
-    @EXAMPLE_ARANGOSH_OUTPUT{01_workWithAQL_databaseExplain}
+    @EXAMPLE_ARANGOSH_OUTPUT{01_workWithAQL_databaseProfileQuery}
     db._profileQuery("FOR x IN _frontend FILTER x.a > 10 RETURN x", {}, {colors: false});
     @END_EXAMPLE_ARANGOSH_OUTPUT
     @endDocuBlock 01_workWithAQL_databaseProfileQuery
