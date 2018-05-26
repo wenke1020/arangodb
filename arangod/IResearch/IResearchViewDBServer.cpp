@@ -306,10 +306,6 @@ arangodb::Result IResearchViewDBServer::appendVelocyPack(
   return arangodb::Result();
 }
 
-void IResearchViewDBServer::apply(arangodb::TransactionState& state) {
-  state.addStatusChangeCallback(_trxReadCallback);
-}
-
 arangodb::Result IResearchViewDBServer::drop() {
   WriteMutex mutex(_mutex);
   SCOPED_LOCK(mutex); // 'collections_' can be asynchronously read

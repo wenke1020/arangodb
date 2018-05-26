@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 /// DISCLAIMER
 ///
-/// Copyright 2016 ArangoDB GmbH, Cologne, Germany
+/// Copyright 2018 ArangoDB GmbH, Cologne, Germany
 ///
 /// Licensed under the Apache License, Version 2.0 (the "License");
 /// you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 /// @author Jan Steemann
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef ARANGODB_REST_SERVER_TRANSACTION_MANAGER_FEATURE_H
-#define ARANGODB_REST_SERVER_TRANSACTION_MANAGER_FEATURE_H 1
+#ifndef ARANGODB_STORAGE_ENGINE_TRANSACTION_MANAGER_FEATURE_H
+#define ARANGODB_STORAGE_ENGINE_TRANSACTION_MANAGER_FEATURE_H 1
 
 #include "ApplicationFeatures/ApplicationFeature.h"
 

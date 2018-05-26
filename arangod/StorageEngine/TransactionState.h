@@ -54,10 +54,8 @@ struct TRI_vocbase_t;
 namespace arangodb {
 
 namespace transaction {
-
 class Methods;
 struct Options;
-
 }
 
 class ExecContext;
@@ -73,8 +71,6 @@ class TransactionState {
     virtual ~Cookie() {}
   };
 
-  typedef std::function<void(TransactionState& state)> StatusChangeCallback;
-
   TransactionState() = delete;
   TransactionState(TransactionState const&) = delete;
   TransactionState& operator=(TransactionState const&) = delete;
@@ -83,9 +79,6 @@ class TransactionState {
                    TRI_voc_tid_t,
                    transaction::Options const& options);
   virtual ~TransactionState();
-
-  /// @brief add a callback to be called for state change events
-  void addStatusChangeCallback(StatusChangeCallback const& callback);
 
   /// @return a cookie associated with the specified key, nullptr if none
   Cookie* cookie(void const* key) noexcept;
@@ -222,18 +215,22 @@ class TransactionState {
   SmallVector<TransactionCollection*>
       _collections;  // list of participating collections
 
-  ServerState::RoleEnum const _serverRole;  // role of the server
+  /// @brief cache role of the server
+  ServerState::RoleEnum const _serverRole;
 
   CollectionNameResolver _resolver;
 
-  transaction::Hints _hints;  // hints;
+  /// transaction hints hints
+  transaction::Hints _hints;
   int _nestingLevel;
 
   transaction::Options _options;
 
  private:
-  std::map<void const*, Cookie::ptr> _cookies; // a collection of stored cookies
-  std::vector<StatusChangeCallback const*> _statusChangeCallbacks; // functrs to call for status change (pointer to allow for use of std::vector)
+  /// @brief a collection of stored cookies
+  std::map<void const*, Cookie::ptr> _cookies;
+  /// @brief servers we already talked to for this transactions
+  std::set<std::string> involvedServers;
 };
 
 }

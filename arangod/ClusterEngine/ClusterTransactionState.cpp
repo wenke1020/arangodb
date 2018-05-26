@@ -23,10 +23,10 @@
 #include "ClusterTransactionState.h"
 #include "Basics/Exceptions.h"
 #include "Logger/Logger.h"
-#include "RestServer/TransactionManagerFeature.h"
 #include "StorageEngine/StorageEngine.h"
 #include "StorageEngine/TransactionCollection.h"
 #include "StorageEngine/TransactionManager.h"
+#include "StorageEngine/TransactionManagerFeature.h"
 #include "Transaction/Methods.h"
 #include "Utils/ExecContext.h"
 #include "VocBase/LogicalCollection.h"
@@ -81,7 +81,7 @@ Result ClusterTransactionState::beginTransaction(transaction::Hints hints) {
 
     // register a protector (intentionally empty)
     auto data = std::make_unique<ClusterTransactionData>();
-    TransactionManagerFeature::manager()->registerTransaction(_id, std::move(data));
+    TransactionManagerFeature::manager()->registerTransaction(*this, std::move(data));
     
   } else {
     TRI_ASSERT(_status == transaction::Status::RUNNING);

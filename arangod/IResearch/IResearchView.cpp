@@ -853,10 +853,10 @@ IResearchView::~IResearchView() {
 IResearchView::MemoryStore& IResearchView::activeMemoryStore() const {
   return _memoryNode->_store;
 }
-
+/*
 void IResearchView::apply(arangodb::TransactionState& state) {
   state.addStatusChangeCallback(_trxReadCallback);
-}
+}*/
 
 int IResearchView::drop(TRI_voc_cid_t cid) {
   std::shared_ptr<irs::filter> shared_filter(iresearch::FilterFactory::filter(cid));
@@ -1300,9 +1300,10 @@ int IResearchView::insert(
 
     auto storeItr = irs::map_utils::try_emplace(_storeByTid, trx.state()->id());
 
-    if (storeItr.second) {
+#warning FIX
+    /*if (storeItr.second) {
       trx.state()->addStatusChangeCallback(_trxWriteCallback);
-    }
+    }*/
 
     store = &(storeItr.first->second._store);
   }
@@ -1368,9 +1369,10 @@ int IResearchView::insert(
 
     auto storeItr = irs::map_utils::try_emplace(_storeByTid, trx.state()->id());
 
-    if (storeItr.second) {
+#warning FIX
+    /*if (storeItr.second) {
       trx.state()->addStatusChangeCallback(_trxWriteCallback);
-    }
+    }*/
 
     store = &(storeItr.first->second._store);
   }
@@ -1614,9 +1616,10 @@ int IResearchView::remove(
 
     auto storeItr = irs::map_utils::try_emplace(_storeByTid, trx.state()->id());
 
-    if (storeItr.second) {
+#warning FIX
+    /*if (storeItr.second) {
       trx.state()->addStatusChangeCallback(_trxWriteCallback);
-    }
+    }*/
 
     store = &(storeItr.first->second);
   }

@@ -28,7 +28,6 @@
 #include "Cache/Manager.h"
 #include "Cache/Transaction.h"
 #include "Logger/Logger.h"
-#include "RestServer/TransactionManagerFeature.h"
 #include "RocksDBEngine/RocksDBCollection.h"
 #include "RocksDBEngine/RocksDBCommon.h"
 #include "RocksDBEngine/RocksDBEngine.h"
@@ -38,6 +37,7 @@
 #include "StorageEngine/StorageEngine.h"
 #include "StorageEngine/TransactionCollection.h"
 #include "StorageEngine/TransactionManager.h"
+#include "StorageEngine/TransactionManagerFeature.h"
 #include "Transaction/Methods.h"
 #include "Utils/ExecContext.h"
 #include "VocBase/LogicalCollection.h"
@@ -116,8 +116,8 @@ Result RocksDBTransactionState::beginTransaction(transaction::Hints hints) {
 
     // register a protector (intentionally empty)
     auto data = std::make_unique<RocksDBTransactionData>();
-    TransactionManagerFeature::manager()->registerTransaction(_id,
-                                                              std::move(data));
+    TransactionManagerFeature::manager()->registerTransaction(*this, std::move(data));
+    // unregistering happens in transaction::Context
 
     TRI_ASSERT(_rocksTransaction == nullptr);
     TRI_ASSERT(_cacheTx == nullptr);

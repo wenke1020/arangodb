@@ -95,11 +95,12 @@ TransactionCollection* TransactionState::collection(
   return trxCollection;
 }
 
+/*
 void TransactionState::addStatusChangeCallback(
     StatusChangeCallback const& callback
 ) {
   _statusChangeCallbacks.emplace_back(&callback);
-}
+}*/
 
 TransactionState::Cookie* TransactionState::cookie(
     void const* key
@@ -424,7 +425,7 @@ void TransactionState::updateStatus(transaction::Status status) {
 
   _status = status;
 
-  for (auto& callback: _statusChangeCallbacks) {
+  /*for (auto& callback: _statusChangeCallbacks) {
     TRI_ASSERT(callback);
 
     try {
@@ -432,5 +433,5 @@ void TransactionState::updateStatus(transaction::Status status) {
     } catch (...) {
       // we must not propagate exceptions from here
     }
-  }
+  }*/
 }

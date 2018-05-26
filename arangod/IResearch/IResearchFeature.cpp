@@ -53,6 +53,8 @@
 #include "StorageEngine/EngineSelectorFeature.h"
 #include "StorageEngine/StorageEngine.h"
 #include "StorageEngine/TransactionState.h"
+#include "StorageEngine/TransactionManager.h"
+#include "StorageEngine/TransactionManagerFeature.h"
 #include "MMFiles/MMFilesEngine.h"
 #include "RocksDBEngine/RocksDBEngine.h"
 #include "Transaction/Methods.h"
@@ -261,6 +263,7 @@ void registerViewFactory() {
   }
 }
 
+/*
 template<typename Impl>
 arangodb::Result transactionStateRegistrationCallback(
     arangodb::LogicalDataSource& dataSource,
@@ -293,27 +296,35 @@ arangodb::Result transactionStateRegistrationCallback(
 
   if (!impl) {
     LOG_TOPIC(WARN, arangodb::iresearch::TOPIC)
-      << "failure to get IResearchView while processing a TransactionState by IResearchFeature for tid '" << state.id() << "' cid '" << dataSource.name() << "'";
-
+      << "failure to get IResearchView while processing a TransactionState by IResearchFeature for tid '"
+      << state.id() << "' cid '" << dataSource.name() << "'";
     return arangodb::Result(TRI_ERROR_INTERNAL);
   }
 
   impl->apply(state);
 
   return arangodb::Result();
-}
+}*/
 
 void registerTransactionStateCallback() {
+  static arangodb::TransactionManager::StatusChangeCallback cb =
+    [](arangodb::TransactionState& state) {
+    
+  };
+  auto mgr = arangodb::TransactionManagerFeature::manager();
   if (arangodb::ServerState::instance()->isCoordinator()) {
     // NOOP
   } else if(arangodb::ServerState::instance()->isDBServer()) {
-    arangodb::transaction::Methods::addStateRegistrationCallback(
+#warning FIXTHIS
+    mgr->addStatusChangeCallback(&cb);
+    /*arangodb::transaction::Methods::addStateRegistrationCallback(
       transactionStateRegistrationCallback<arangodb::iresearch::IResearchViewDBServer>
-    );
+    );*/
   } else {
-    arangodb::transaction::Methods::addStateRegistrationCallback(
+    mgr->addStatusChangeCallback(&cb);
+    /*arangodb::transaction::Methods::addStateRegistrationCallback(
       transactionStateRegistrationCallback<arangodb::iresearch::IResearchView>
-    );
+    );*/
   }
 }
 

@@ -431,7 +431,6 @@ SET(ARANGOD_SOURCES
   RestServer/ScriptFeature.cpp
   RestServer/ServerFeature.cpp
   RestServer/ServerIdFeature.cpp
-  RestServer/TransactionManagerFeature.cpp
   RestServer/TraverserEngineRegistryFeature.cpp
   RestServer/UpgradeFeature.cpp
   RestServer/ViewTypesFeature.cpp
@@ -456,9 +455,12 @@ SET(ARANGOD_SOURCES
   StorageEngine/EngineSelectorFeature.cpp
   StorageEngine/PhysicalCollection.cpp
   StorageEngine/TransactionCollection.cpp
+  StorageEngine/TransactionManager.cpp
+  StorageEngine/TransactionManagerFeature.cpp
   StorageEngine/TransactionState.cpp
   StorageEngine/WalAccess.cpp
   Transaction/Context.cpp
+  Transaction/GlobalContext.cpp
   Transaction/Helpers.cpp
   Transaction/Methods.cpp
   Transaction/Options.cpp

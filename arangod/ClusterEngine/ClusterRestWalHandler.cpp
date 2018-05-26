@@ -25,9 +25,9 @@
 #include "Basics/VelocyPackHelper.h"
 #include "Cluster/ClusterMethods.h"
 #include "Cluster/ServerState.h"
-#include "RestServer/TransactionManagerFeature.h"
 #include "StorageEngine/EngineSelectorFeature.h"
 #include "StorageEngine/StorageEngine.h"
+#include "StorageEngine/TransactionManagerFeature.h"
 #include "StorageEngine/TransactionManager.h"
 #include "Utils/ExecContext.h"
 
