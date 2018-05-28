@@ -49,10 +49,10 @@ class GlobalContext final : public Context {
   orderCustomTypeHandler() override final;
 
   /// @brief return the resolver
-  CollectionNameResolver const* getResolver() override final;
+  CollectionNameResolver const& resolver() override final;
 
-  /// @brief return the parent transaction (none in our case)
-  TransactionState* getParentTransaction() const override;
+  /// @brief get parent transaction (if any) and increase nesting
+  TransactionState* leaseParentTransaction() const override;
 
   /// @brief register the transaction,
   void registerTransaction(TransactionState*) override;
@@ -61,11 +61,14 @@ class GlobalContext final : public Context {
   void unregisterTransaction() noexcept override;
 
   /// @brief whether or not the transaction is embeddable
-  bool isEmbeddable() const override { return false; }
+  bool isEmbeddable() const override;
 
   /// @brief create a context, returned in a shared ptr
   static std::shared_ptr<transaction::GlobalContext> Create(
     TRI_vocbase_t& vocbase);
+  
+  /// @brief register as the current transaction
+  static void registerTransaction(TRI_voc_tid_t tid);
 };
 
 }

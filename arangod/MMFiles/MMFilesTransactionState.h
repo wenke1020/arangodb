@@ -37,9 +37,7 @@
 struct TRI_vocbase_t;
 
 namespace rocksdb {
-
-class Transaction;
-
+  class Transaction;
 }
 
 namespace arangodb {
@@ -49,10 +47,8 @@ struct MMFilesDocumentOperation;
 class MMFilesWalMarker;
 
 namespace transaction {
-
 class Methods;
 struct Options;
-
 }
 
 class TransactionCollection;
@@ -61,7 +57,7 @@ class TransactionCollection;
 class MMFilesTransactionState final : public TransactionState {
  public:
   MMFilesTransactionState(
-    CollectionNameResolver const& resolver,
+    TRI_vocbase_t&,
     TRI_voc_tid_t tid,
     transaction::Options const& options
   );
@@ -85,7 +81,7 @@ class MMFilesTransactionState final : public TransactionState {
                    MMFilesDocumentOperation&, MMFilesWalMarker const* marker, bool&);
 
   /// @brief get the transaction id for usage in a marker
-  TRI_voc_tid_t idForMarker() {
+  TRI_voc_tid_t idForMarker() const {
     if (isSingleOperation()) {
       return 0;
     }

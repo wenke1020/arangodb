@@ -105,8 +105,7 @@ class RocksDBEngine final : public StorageEngine {
   TransactionManager* createTransactionManager() override;
   transaction::ContextData* createTransactionContextData() override;
   std::unique_ptr<TransactionState> createTransactionState(
-    CollectionNameResolver const& resolver,
-    transaction::Options const& options
+    TRI_vocbase_t&, TRI_voc_tid_t, transaction::Options const& options
   ) override;
   TransactionCollection* createTransactionCollection(
       TransactionState* state, TRI_voc_cid_t cid, AccessMode::Type accessType,

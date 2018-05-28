@@ -255,7 +255,7 @@ Result Collections::load(TRI_vocbase_t& vocbase, LogicalCollection* coll) {
   }
 
   auto ctx = transaction::V8Context::CreateWhenRequired(vocbase, true);
-  SingleCollectionTransaction trx(ctx, coll->id(), AccessMode::Type::READ);
+  SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::READ);
 
   Result res = trx.begin();
 
@@ -310,9 +310,7 @@ Result Collections::properties(LogicalCollection* coll, VPackBuilder& builder) {
       transaction::V8Context::CreateWhenRequired(coll->vocbase(), true);
 
     // populate the transaction object (which is used outside this if too)
-    trx.reset(new SingleCollectionTransaction(
-      ctx, coll->id(), AccessMode::Type::READ
-    ));
+    trx.reset(new SingleCollectionTransaction(ctx, coll, AccessMode::Type::READ));
 
     // we actually need this hint here, so that the collection is not
     // loaded if it has status unloaded.
@@ -359,9 +357,7 @@ Result Collections::updateProperties(LogicalCollection* coll,
   } else {
     auto ctx =
       transaction::V8Context::CreateWhenRequired(coll->vocbase(), false);
-    SingleCollectionTransaction trx(
-      ctx, coll->id(), AccessMode::Type::EXCLUSIVE
-    );
+    SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::EXCLUSIVE);
     Result res = trx.begin();
 
     if (!res.ok()) {
@@ -536,7 +532,7 @@ Result Collections::warmup(TRI_vocbase_t& vocbase, LogicalCollection* coll) {
   }
 
   auto ctx = transaction::V8Context::CreateWhenRequired(vocbase, false);
-  SingleCollectionTransaction trx(ctx, coll->id(), AccessMode::Type::READ);
+  SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::READ);
   Result res = trx.begin();
 
   if (res.fail()) {
@@ -579,7 +575,7 @@ Result Collections::revisionId(
   }
 
   auto ctx = transaction::V8Context::CreateWhenRequired(vocbase, true);
-  SingleCollectionTransaction trx(ctx, coll->id(), AccessMode::Type::READ);
+  SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::READ);
   Result res = trx.begin();
 
   if (res.fail()) {

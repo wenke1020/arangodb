@@ -283,11 +283,11 @@ transaction::ContextData* MMFilesEngine::createTransactionContextData() {
 }
 
 std::unique_ptr<TransactionState> MMFilesEngine::createTransactionState(
-    CollectionNameResolver const& resolver,
-    transaction::Options const& options
-) {
+    TRI_vocbase_t& vocbase,
+    TRI_voc_tid_t tid,
+    transaction::Options const& options) {
   return std::unique_ptr<TransactionState>(
-    new MMFilesTransactionState(resolver, TRI_NewTickServer(), options)
+    new MMFilesTransactionState(vocbase, tid, options)
   );
 }
 

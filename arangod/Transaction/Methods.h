@@ -507,7 +507,7 @@ class Methods {
   Result addCollection(TRI_voc_cid_t, std::string const&, AccessMode::Type);
 
   /// @brief add a collection by id
-  Result addCollection(TRI_voc_cid_t, AccessMode::Type);
+  //Result addCollection(TRI_voc_cid_t, AccessMode::Type);
 
   /// @brief add a collection by name
   Result addCollection(std::string const&, AccessMode::Type);

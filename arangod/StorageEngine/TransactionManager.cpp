@@ -60,12 +60,22 @@ void TransactionManager::unregisterFailedTransactions(
 void TransactionManager::registerTransaction(TransactionState& state, std::unique_ptr<TransactionData> data) {
   TRI_ASSERT(data != nullptr);
   _nrRunning.fetch_add(1, std::memory_order_relaxed);
+  
+  bool isGlobal = state.hasHint(transaction::Hints::Hint::GLOBAL);
+  if (!isGlobal && !keepTransactionData(state)) {
+    return;
+  }
 
   size_t bucket = getBucket(state.id());
   READ_LOCKER(allTransactionsLocker, _allTransactionsLock);
      
   WRITE_LOCKER(writeLocker, _transactions[bucket]._lock);
-
+  
+  if (isGlobal) {
+    data->_state = &state;
+    data->_expires = TRI_microtime() + defaultTTL;
+  }
+  
   // insert into currently running list of transactions
   _transactions[bucket]._activeTransactions.emplace(state.id(), std::move(data));
 }
@@ -132,8 +142,26 @@ uint64_t TransactionManager::getActiveTransactionCount() {
   return count;*/
 }
 
-TransactionState* TransactionManager::lookup(TRI_voc_tid_t) const {
+TransactionState* TransactionManager::leaseTransaction(TRI_voc_tid_t transactionId) const {
+  size_t bucket = getBucket(transactionId);
+  READ_LOCKER(allTransactionsLocker, _allTransactionsLock);
   
+  READ_LOCKER(writeLocker, _transactions[bucket]._lock);
+  
+  auto const& it = _transactions[bucket]._activeTransactions.find(transactionId);
+  if (it != _transactions[bucket]._activeTransactions.end()) {
+    if (it->second->_state != nullptr) {
+      TRI_ASSERT(it->second->_state->hasHint(transaction::Hints::Hint::GLOBAL));
+      if (it->second->_state->isEmbeddedTransaction()) {
+        THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_INTERNAL,
+                                       "Concurrent use of transaction");
+      }
+      it->second->_expires = defaultTTL + TRI_microtime();
+      it->second->_state->increaseNesting();
+      return it->second->_state;
+    }
+  }
+  return nullptr;
 }
 
 void TransactionManager::garbageCollect() {
@@ -142,8 +170,19 @@ void TransactionManager::garbageCollect() {
   for (size_t bucket = 0; bucket < numBuckets; ++bucket) {
     WRITE_LOCKER(locker, _transactions[bucket]._lock);
     
+    double now = TRI_microtime();
     for (auto const& it : _transactions[bucket]._activeTransactions) {
-      //callback(it.first, it.second.get());
+      // we only concern ourselves with global transactions
+      if (it.second->_state != nullptr) {
+        TRI_ASSERT(it.second->_state->hasHint(transaction::Hints::Hint::GLOBAL));
+        if (it.second->_state->isTopLevelTransaction()) {
+          if (it.second->_expires > now) {
+#warning TODO cleanup
+          }
+        } else {
+          it.second->_expires = defaultTTL + TRI_microtime();
+        }
+      }
     }
   }
 }

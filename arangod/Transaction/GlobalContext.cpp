@@ -41,7 +41,7 @@ transaction::GlobalContext::GlobalContext(TRI_vocbase_t& vocbase)
 std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::GlobalContext::orderCustomTypeHandler() {
   if (_customTypeHandler == nullptr) {
     _customTypeHandler.reset(
-      transaction::Context::createCustomTypeHandler(&_vocbase, getResolver())
+      transaction::Context::createCustomTypeHandler(&_vocbase, &resolver())
     );
     _options.customTypeHandler = _customTypeHandler.get();
     _dumpOptions.customTypeHandler = _customTypeHandler.get();
@@ -53,31 +53,34 @@ std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::GlobalCont
 }
 
 /// @brief return the resolver
-CollectionNameResolver const* transaction::GlobalContext::getResolver() {
+CollectionNameResolver const& transaction::GlobalContext::resolver() {
   if (_resolver == nullptr) {
     createResolver();
   }
+  
   TRI_ASSERT(_resolver != nullptr);
-  return _resolver;
+  
+  return *_resolver;
 }
   
-/// @brief return the parent transaction
-TransactionState* transaction::GlobalContext::getParentTransaction() const {
+/// @brief get parent transaction (if any) and increase nesting
+TransactionState* transaction::GlobalContext::leaseParentTransaction() const {
   if (CURRENT_TRX_ID == 0) {
     return nullptr;
   }
   
   TransactionManager* mgr = TransactionManagerFeature::manager();
   TRI_ASSERT(mgr != nullptr);
-  TransactionState* trx = mgr->lookup(CURRENT_TRX_ID);
-  TRI_ASSERT(trx != nullptr);
-  TRI_ASSERT(trx->hasHint(transaction::Hints::Hint::IS_GLOBAL));
-  return trx;
+  // will call increaseNesting() for us
+  TransactionState* state = mgr->leaseTransaction(CURRENT_TRX_ID);
+  TRI_ASSERT(state != nullptr);
+  TRI_ASSERT(state->hasHint(transaction::Hints::Hint::GLOBAL));
+  return state;
 }
 
 /// @brief register the transaction,
 void transaction::GlobalContext::registerTransaction(TransactionState* trx) {
-  TRI_ASSERT(trx->hasHint(transaction::Hints::Hint::IS_GLOBAL));
+  TRI_ASSERT(trx->hasHint(transaction::Hints::Hint::GLOBAL));
   CURRENT_TRX_ID = trx->id();
 }
   
@@ -85,12 +88,22 @@ void transaction::GlobalContext::registerTransaction(TransactionState* trx) {
 void transaction::GlobalContext::unregisterTransaction() noexcept {
   CURRENT_TRX_ID = 0;
 }
+  
+/// @brief whether or not the transaction is embeddable
+bool transaction::GlobalContext::isEmbeddable() const {
+  TRI_ASSERT(CURRENT_TRX_ID != 0);
+  return true;
+}
 
 /// @brief create a context, returned in a shared ptr
 /*static*/ std::shared_ptr<transaction::GlobalContext> transaction::GlobalContext::Create(
     TRI_vocbase_t& vocbase
 ) {
   return std::make_shared<transaction::GlobalContext>(vocbase);
+}
+  
+void transaction::GlobalContext::registerTransaction(TRI_voc_tid_t tid) {
+  CURRENT_TRX_ID = tid;
 }
 
 } // arangodb

@@ -612,25 +612,25 @@ transaction::Methods::Methods(
   // this will first check if the transaction is embedded in a parent
   // transaction. if not, it will create a transaction of its own
   // check in the context if we are running embedded
-  TransactionState* parent = _transactionContextPtr->getParentTransaction();
+  TransactionState* parent = _transactionContextPtr->leaseParentTransaction();
 
   if (parent != nullptr) { // yes, we are embedded
     if (!_transactionContextPtr->isEmbeddable()) {
       // we are embedded but this is disallowed...
-      THROW_ARANGO_EXCEPTION(TRI_ERROR_TRANSACTION_NESTED);
+      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_NESTED,
+                                     "concurrent use of transaction is not allowed");
     }
-
+    // leaseParentTransaction will implicitly call state->increaseNesting()
     _state = parent;
-
-    TRI_ASSERT(_state != nullptr);
-    _state->increaseNesting();
+    TRI_ASSERT(_state != nullptr && _state->isEmbeddedTransaction());
+    
   } else { // non-embedded
     // now start our own transaction
     StorageEngine* engine = EngineSelectorFeature::ENGINE;
-
-    _state = engine->createTransactionState(
-       _transactionContextPtr->resolver(), options
-    ).release();
+    TRI_vocbase_t& vocbase = _transactionContextPtr->vocbase();
+    TRI_voc_tick_t tid = ServerState::instance()->isCoordinator() ?
+                         ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
+    _state = engine->createTransactionState(vocbase, tid, options).release();
     TRI_ASSERT(_state != nullptr);
 
     // register the transaction in the context
@@ -642,9 +642,7 @@ transaction::Methods::Methods(
 
 /// @brief destroy the transaction
 transaction::Methods::~Methods() {
-  if (_state->isEmbeddedTransaction()) {
-    _state->decreaseNesting();
-  } else {
+  if (_state->isTopLevelTransaction()) { // _nestingLevel == 0
     if (_state->status() == transaction::Status::RUNNING) {
       // auto abort a running transaction
       try {
@@ -654,16 +652,17 @@ transaction::Methods::~Methods() {
         // must never throw because we are in a dtor
       }
     }
-
+    
     // free the state associated with the transaction
     TRI_ASSERT(_state->status() != transaction::Status::RUNNING);
-    // store result
-    _transactionContextPtr->storeTransactionResult(
-        _state->id(), _state->hasFailedOperations());
+    // store result in context
+    _transactionContextPtr->storeTransactionResult(_state->id(), _state->hasFailedOperations());
     _transactionContextPtr->unregisterTransaction();
-
+    
     delete _state;
     _state = nullptr;
+  } else {
+    _state->decreaseNesting(); // return transaction
   }
 }
 
@@ -916,18 +915,18 @@ OperationResult transaction::Methods::anyLocal(
 }
 
 TRI_voc_cid_t transaction::Methods::addCollectionAtRuntime(
-    TRI_voc_cid_t cid, std::string const& collectionName,
+    TRI_voc_cid_t cid, std::string const& cname,
     AccessMode::Type type) {
   auto collection = trxCollection(cid);
 
   if (collection == nullptr) {
-    int res = _state->addCollection(cid, type, _state->nestingLevel(), true);
+    int res = _state->addCollection(cid, cname, type, _state->nestingLevel(), true);
 
     if (res != TRI_ERROR_NO_ERROR) {
       if (res == TRI_ERROR_TRANSACTION_UNREGISTERED_COLLECTION) {
         // special error message to indicate which collection was undeclared
         THROW_ARANGO_EXCEPTION_MESSAGE(
-            res, std::string(TRI_errno_string(res)) + ": " + collectionName +
+            res, std::string(TRI_errno_string(res)) + ": " + cname +
                      " [" + AccessMode::typeString(type) + "]");
       }
       THROW_ARANGO_EXCEPTION(res);
@@ -949,7 +948,7 @@ TRI_voc_cid_t transaction::Methods::addCollectionAtRuntime(
     collection = trxCollection(cid);
 
     if (collection == nullptr) {
-      throwCollectionNotFound(collectionName.c_str());
+      throwCollectionNotFound(cname.c_str());
     }
   }
 
@@ -3036,10 +3035,10 @@ Result transaction::Methods::addCollection(TRI_voc_cid_t cid,
 }
 
 /// @brief add a collection by id
-Result transaction::Methods::addCollection(TRI_voc_cid_t cid,
+/*Result transaction::Methods::addCollection(TRI_voc_cid_t cid,
                                            AccessMode::Type type) {
   return addCollection(cid, nullptr, type);
-}
+}*/
 
 /// @brief add a collection by name
 Result transaction::Methods::addCollection(std::string const& name,
@@ -3209,14 +3208,14 @@ Result transaction::Methods::addCollectionEmbedded(TRI_voc_cid_t cid,
                                                    AccessMode::Type type) {
   TRI_ASSERT(_state != nullptr);
 
-  int res = _state->addCollection(cid, type, _state->nestingLevel(), false);
+  std::string cname = resolver()->getCollectionNameCluster(cid);
+  int res = _state->addCollection(cid, cname, type, _state->nestingLevel(), false);
 
   if (res != TRI_ERROR_NO_ERROR) {
     if (res == TRI_ERROR_TRANSACTION_UNREGISTERED_COLLECTION) {
       // special error message to indicate which collection was undeclared
       THROW_ARANGO_EXCEPTION_MESSAGE(
-          res, std::string(TRI_errno_string(res)) + ": " +
-                   resolver()->getCollectionNameCluster(cid) + " [" +
+          res, std::string(TRI_errno_string(res)) + ": " + cname + " [" +
                    AccessMode::typeString(type) + "]");
     } else if (res == TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND) {
       throwCollectionNotFound(name);
@@ -3232,22 +3231,21 @@ Result transaction::Methods::addCollectionToplevel(TRI_voc_cid_t cid,
                                                    char const* name,
                                                    AccessMode::Type type) {
   TRI_ASSERT(_state != nullptr);
-
+  std::string cname = resolver()->getCollectionNameCluster(cid);
+  
   int res;
-
   if (_state->status() != transaction::Status::CREATED) {
     // transaction already started?
     res = TRI_ERROR_TRANSACTION_INTERNAL;
   } else {
-    res = _state->addCollection(cid, type, _state->nestingLevel(), false);
+    res = _state->addCollection(cid, cname, type, _state->nestingLevel(), false);
   }
 
   if (res != TRI_ERROR_NO_ERROR) {
     if (res == TRI_ERROR_TRANSACTION_UNREGISTERED_COLLECTION) {
       // special error message to indicate which collection was undeclared
       THROW_ARANGO_EXCEPTION_MESSAGE(
-          res, std::string(TRI_errno_string(res)) + ": " +
-                   resolver()->getCollectionNameCluster(cid) + " [" +
+          res, std::string(TRI_errno_string(res)) + ": " + cname + " [" +
                    AccessMode::typeString(type) + "]");
     } else if (res == TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND) {
       throwCollectionNotFound(name);

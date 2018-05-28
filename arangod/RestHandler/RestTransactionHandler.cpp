@@ -25,7 +25,13 @@
 #include "ApplicationFeatures/ApplicationServer.h"
 #include "Basics/ReadLocker.h"
 #include "Basics/WriteLocker.h"
+#include "Cluster/ClusterInfo.h"
 #include "Rest/HttpRequest.h"
+#include "StorageEngine/EngineSelectorFeature.h"
+#include "StorageEngine/StorageEngine.h"
+#include "StorageEngine/TransactionManager.h"
+#include "StorageEngine/TransactionManagerFeature.h"
+#include "StorageEngine/TransactionState.h"
 #include "V8Server/V8Context.h"
 #include "V8Server/V8DealerFeature.h"
 #include "VocBase/Methods/Transactions.h"
@@ -52,8 +58,8 @@ RestStatus RestTransactionHandler::execute() {
       
     case rest::RequestType::POST:
       if (_request->suffixes().size() == 1 &&
-          _request->suffixes()[0] == "start") {
-        executeStart();
+          _request->suffixes()[0] == "begin") {
+        executeBegin();
       } else if (_request->suffixes().empty()) {
         executeJSTransaction();
       }
@@ -81,14 +87,135 @@ void RestTransactionHandler::executeGetState() {
     generateError(rest::ResponseCode::NOT_IMPLEMENTED,
                   TRI_ERROR_NOT_IMPLEMENTED);
   }
-
+  
+  TRI_voc_tid_t tid = StringUtils::uint64(_request->suffixes()[1]);
+  if (tid == 0) {
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER, "Illegal transaction ID");
+    return;
+  }
+  
+  TransactionManager* mgr = TransactionManagerFeature::manager();
+  TransactionState* state = mgr->leaseTransaction(tid);
+  TRI_DEFER(state->decreaseNesting());
+  
+  VPackBuilder b;
+  b.openObject();
+  b.add("state", VPackValue(transaction::statusString(state->status())));
+  b.add("options", VPackValue(VPackValueType::Object));
+  state->options().toVelocyPack(b);
+  b.close();
+  b.close();
+  generateOk(rest::ResponseCode::OK, b.slice());
 }
 
-void RestTransactionHandler::executeStart() {
+void RestTransactionHandler::executeBegin() {
   TRI_ASSERT(_request->suffixes().size() == 1 &&
-             _request->suffixes()[0] == "start");
+             _request->suffixes()[0] == "begin");
   
+  if (!ServerState::instance()->isSingleServerOrCoordinator()) {
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_NOT_IMPLEMENTED,
+                  "Not supported on this server type");
+  }
   
+  bool parseSuccess = false;
+  VPackSlice body = parseVPackBody(parseSuccess);
+  if (!parseSuccess) {
+    // error message generated in parseVPackBody
+    return;
+  }
+  
+  // extract the properties from the object
+  transaction::Options trxOptions;
+  trxOptions.fromVelocyPack(body);
+  if (trxOptions.lockTimeout < 0.0) {
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER,
+                  "<lockTiemout> needs to be positive");
+    return;
+  }
+  
+  // parse the collections to register
+  if (!body.isObject() || !body.get("collections").isObject()) {
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER);
+    return;
+  }
+  auto fillColls = [](VPackSlice const& slice, std::vector<std::string> cols) {
+    if (slice.isNone()) { // ignore nonexistant keys
+      return true;
+    } else if (!slice.isArray()) {
+      return false;
+    }
+    for (VPackSlice val : VPackArrayIterator(slice)) {
+      if (!val.isString() || val.getStringLength() == 0) {
+        return false;
+      }
+      cols.emplace_back(val.toString());
+    }
+    return true;
+  };
+  std::vector<std::string> readCols, writeCols, exlusiveCols;
+  VPackSlice collections = body.get("collections");
+  bool isValid = fillColls(collections.get("read"), readCols) &&
+                 fillColls(collections.get("write"), writeCols) &&
+                 fillColls(collections.get("exclusive"), exlusiveCols);
+  if (!isValid) {
+    generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER);
+    return;
+  }
+  
+  // generate the transaction ID
+  TRI_voc_tick_t tid = ServerState::instance()->isCoordinator() ?
+                       ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
+  TRI_ASSERT(tid != 0);
+  
+  // now start our own transaction
+  StorageEngine* engine = EngineSelectorFeature::ENGINE;
+  auto state = engine->createTransactionState(_vocbase, tid, trxOptions);
+  TRI_ASSERT(state != nullptr);
+  
+  // lock collections
+  CollectionNameResolver resolver(_vocbase);
+  if (!ServerState::instance()->isCoordinator()) {
+    auto lockCols = [&](std::vector<std::string> cols, AccessMode::Type mode) {
+      for (auto const& cname : cols) {
+        auto cid = resolver.getCollectionIdLocal(cname);
+        if (cid == 0) {
+          return false;
+        }
+        state->addCollection(cid, cname, mode, 0, false);
+      }
+      return true;
+    };
+    if (!lockCols(exlusiveCols, AccessMode::Type::EXCLUSIVE) ||
+        !lockCols(writeCols, AccessMode::Type::WRITE) ||
+        !lockCols(readCols, AccessMode::Type::READ)) {
+      generateError(rest::ResponseCode::BAD, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND);
+    }
+  }
+  
+  // start the transaction
+  transaction::Hints hints;
+  hints.set(transaction::Hints::Hint::LOCK_ENTIRELY);
+  hints.set(transaction::Hints::Hint::GLOBAL);
+  // will register itself with the manager
+  state->beginTransaction(hints);
+  TRI_ASSERT(state->status() == transaction::Status::RUNNING);
+  
+#ifdef ARANGODB_ENABLE_MAINTAINER_MODE
+  TransactionManager* mgr = TransactionManagerFeature::manager();
+  TransactionState* stat = mgr->leaseTransaction(tid);
+  TRI_ASSERT(stat != nullptr);
+  state->decreaseNesting(); // release again
+#endif
+  
+  VPackBuilder b;
+  b.openObject();
+  b.add("id", VPackValue(std::to_string(state->id())));
+  b.add("state", VPackValue(transaction::statusString(state->status())));
+  b.add("options", VPackValue(VPackValueType::Object));
+  state->options().toVelocyPack(b);
+  b.close();
+  b.close();
+  generateOk(rest::ResponseCode::OK, b.slice());
 }
 
 void RestTransactionHandler::executeCommit() {

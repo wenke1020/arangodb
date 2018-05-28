@@ -100,7 +100,7 @@ void MMFilesCollectionKeys::create(TRI_voc_tick_t maxTick) {
   {
     auto ctx = transaction::StandaloneContext::Create(_collection->vocbase());
     SingleCollectionTransaction trx(
-      ctx, _collection->id(), AccessMode::Type::READ
+      ctx, _collection, AccessMode::Type::READ
     );
 
     // already locked by _guard

@@ -1202,7 +1202,7 @@ VPackSlice LogicalCollection::keyOptions() const {
 
 ChecksumResult LogicalCollection::checksum(bool withRevisions, bool withData) const {
   auto ctx = transaction::StandaloneContext::Create(vocbase());
-  SingleCollectionTransaction trx(ctx, id(), AccessMode::Type::READ);
+  SingleCollectionTransaction trx(ctx, this, AccessMode::Type::READ);
   Result res = trx.begin();
 
   if (!res.ok()) {

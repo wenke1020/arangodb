@@ -279,18 +279,17 @@ int MMFilesWalRecoverState::executeSingleOperation(
 
   Result res;
   int tmpres;
-  arangodb::LogicalCollection* collection =
-      useCollection(vocbase, collectionId, tmpres);
+  arangodb::LogicalCollection* coll = useCollection(vocbase, collectionId, tmpres);
   res.reset(tmpres);
 
-  if (collection == nullptr) {
+  if (coll == nullptr) {
     if (res.errorNumber() == TRI_ERROR_ARANGO_CORRUPTED_COLLECTION) {
       return res.errorNumber();
     }
     return TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND;
   }
 
-  auto mmfiles = static_cast<MMFilesCollection*>(collection->getPhysical());
+  auto mmfiles = static_cast<MMFilesCollection*>(coll->getPhysical());
   TRI_ASSERT(mmfiles);
   TRI_voc_tick_t maxTick = mmfiles->maxTick();
   if (marker->getTick() <= maxTick) {
@@ -302,16 +301,13 @@ int MMFilesWalRecoverState::executeSingleOperation(
 
   try {
     auto ctx = transaction::StandaloneContext::Create(*vocbase);
-    SingleCollectionTransaction trx(ctx, collectionId,
-                                    AccessMode::Type::WRITE);
-
+    SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::WRITE);
     trx.addHint(transaction::Hints::Hint::SINGLE_OPERATION);
     trx.addHint(transaction::Hints::Hint::NO_BEGIN_MARKER);
     trx.addHint(transaction::Hints::Hint::NO_ABORT_MARKER);
     trx.addHint(transaction::Hints::Hint::NO_THROTTLING);
     trx.addHint(transaction::Hints::Hint::LOCK_NEVER);
-    trx.addHint(
-        transaction::Hints::Hint::RECOVERY);  // to turn off waitForSync!
+    trx.addHint(transaction::Hints::Hint::RECOVERY);  // turn off waitForSync!
 
     res = trx.begin();
 
@@ -966,7 +962,6 @@ bool MMFilesWalRecoverState::ReplayMarker(MMFilesMarker const* marker,
         }
 
         auto col = vocbase->lookupCollection(collectionId);
-
         if (col == nullptr) {
           // if the underlying collection gone, we can go on
           LOG_TOPIC(TRACE, arangodb::Logger::ENGINES)
@@ -998,7 +993,7 @@ bool MMFilesWalRecoverState::ReplayMarker(MMFilesMarker const* marker,
           return state->canContinue();
         } else {
           auto ctx = transaction::StandaloneContext::Create(*vocbase);
-          arangodb::SingleCollectionTransaction trx(ctx, collectionId,
+          arangodb::SingleCollectionTransaction trx(ctx, col.get(),
                                                     AccessMode::Type::WRITE);
           std::shared_ptr<arangodb::Index> unused;
           int res = physical->restoreIndex(&trx, payloadSlice, unused);
@@ -1611,7 +1606,7 @@ int MMFilesWalRecoverState::fillIndexes() {
 
     auto ctx = transaction::StandaloneContext::Create(collection->vocbase());
     arangodb::SingleCollectionTransaction trx(
-      ctx, collection->id(), AccessMode::Type::WRITE
+      ctx, collection, AccessMode::Type::WRITE
     );
     int res = physical->fillAllIndexes(&trx);
 

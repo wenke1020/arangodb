@@ -36,9 +36,8 @@ class ClusterTransactionManager final : public TransactionManager {
   ~ClusterTransactionManager() {}
 
 protected:
-  bool keepTransactionData(TransactionState*) const override {
-#warning FIXME
-    return true;
+  bool keepTransactionData(TransactionState const&) const override {
+    return false;
   }
 };
 }

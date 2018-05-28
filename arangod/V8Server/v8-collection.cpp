@@ -981,7 +981,7 @@ static void JS_FiguresVocbaseCol(
   TRI_V8_TRY_CATCH_BEGIN(isolate);
   v8::HandleScope scope(isolate);
 
-  arangodb::LogicalCollection* collection =
+  arangodb::LogicalCollection const* collection =
       TRI_UnwrapClass<arangodb::LogicalCollection>(args.Holder(),
                                                    WRP_VOCBASE_COL_TYPE);
 
@@ -991,7 +991,7 @@ static void JS_FiguresVocbaseCol(
 
   SingleCollectionTransaction trx(
     transaction::V8Context::Create(collection->vocbase(), true),
-    collection->id(),
+    collection,
     AccessMode::Type::READ
   );
   Result res = trx.begin();
@@ -2149,7 +2149,7 @@ static void InsertVocbaseCol(v8::Isolate* isolate,
                              std::string* attachment) {
   v8::HandleScope scope(isolate);
 
-  auto collection = TRI_UnwrapClass<arangodb::LogicalCollection>(
+  LogicalCollection const* collection = TRI_UnwrapClass<arangodb::LogicalCollection>(
       args.Holder(), WRP_VOCBASE_COL_TYPE);
 
   if (collection == nullptr) {
@@ -2288,7 +2288,7 @@ static void InsertVocbaseCol(v8::Isolate* isolate,
   auto transactionContext =
       std::make_shared<transaction::V8Context>(collection->vocbase(), true);
   SingleCollectionTransaction trx(
-    transactionContext, collection->id(), AccessMode::Type::WRITE
+    transactionContext, collection, AccessMode::Type::WRITE
   );
 
   if (!payloadIsArray && !options.overwrite) {
@@ -2429,7 +2429,7 @@ static void JS_TruncateVocbaseCol(
   opOptions.waitForSync = ExtractBooleanArgument(args, 1);
   ExtractStringArgument(args, 2, opOptions.isSynchronousReplicationFrom);
 
-  arangodb::LogicalCollection* collection =
+  arangodb::LogicalCollection const* collection =
       TRI_UnwrapClass<arangodb::LogicalCollection>(args.Holder(), WRP_VOCBASE_COL_TYPE);
 
   if (collection == nullptr) {
@@ -2438,7 +2438,7 @@ static void JS_TruncateVocbaseCol(
 
   auto ctx = transaction::V8Context::Create(collection->vocbase(), true);
   SingleCollectionTransaction trx(
-    ctx, collection->id(), AccessMode::Type::EXCLUSIVE
+    ctx, collection, AccessMode::Type::EXCLUSIVE
   );
   Result res = trx.begin();
 

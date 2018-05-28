@@ -195,7 +195,7 @@ static void JS_AllQuery(v8::FunctionCallbackInfo<v8::Value> const& args) {
   TRI_V8_TRY_CATCH_BEGIN(isolate);
   v8::HandleScope scope(isolate);
 
-  arangodb::LogicalCollection* collection =
+  arangodb::LogicalCollection const* collection =
       TRI_UnwrapClass<arangodb::LogicalCollection>(args.Holder(),
                                                    WRP_VOCBASE_COL_TYPE);
 
@@ -208,7 +208,7 @@ static void JS_AllQuery(v8::FunctionCallbackInfo<v8::Value> const& args) {
   std::shared_ptr<transaction::V8Context> transactionContext =
       transaction::V8Context::Create(collection->vocbase(), true);
   SingleCollectionTransaction trx(
-    transactionContext, collection->id(), AccessMode::Type::READ
+    transactionContext, collection, AccessMode::Type::READ
   );
   Result res = trx.begin();
 
@@ -298,9 +298,7 @@ static void JS_AnyQuery(v8::FunctionCallbackInfo<v8::Value> const& args) {
 
   std::shared_ptr<transaction::V8Context> transactionContext =
       transaction::V8Context::Create(col->vocbase(), true);
-  SingleCollectionTransaction trx(
-    transactionContext, col->id(), AccessMode::Type::READ
-  );
+  SingleCollectionTransaction trx(transactionContext, col, AccessMode::Type::READ);
   Result res = trx.begin();
 
   if (!res.ok()) {

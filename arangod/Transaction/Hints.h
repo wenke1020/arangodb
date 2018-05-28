@@ -47,7 +47,7 @@ class Hints {
     NO_USAGE_LOCK = 256, // not supported in RocksDB
     RECOVERY = 512,
     NO_DLD = 1024, // disable deadlock detection, unsupported in RocksDB
-    IS_GLOBAL = 2048
+    GLOBAL = 2048
   };
 
   Hints() : _value(0) {}

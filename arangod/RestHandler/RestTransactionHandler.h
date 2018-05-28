@@ -47,7 +47,7 @@ class RestTransactionHandler : public arangodb::RestVocbaseBaseHandler {
 
  private:
   void executeGetState();
-  void executeStart();
+  void executeBegin();
   void executeCommit();
   void executeAbort();
   

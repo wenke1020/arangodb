@@ -339,24 +339,21 @@ void RestCollectionHandler::handleCommandPut() {
         } else if (sub == "truncate") {
           OperationOptions opts;
 
-      opts.waitForSync = _request->parsedValue("waitForSync", false);
+          opts.waitForSync = _request->parsedValue("waitForSync", false);
           opts.isSynchronousReplicationFrom =
               _request->value("isSynchronousReplication");
 
           auto ctx = transaction::StandaloneContext::Create(_vocbase);
-          SingleCollectionTransaction trx(
-            ctx, coll->id(), AccessMode::Type::EXCLUSIVE
-          );
+          SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::EXCLUSIVE);
 
           res = trx.begin();
 
-      if (res.ok()) {
+          if (res.ok()) {
             OperationResult result = trx.truncate(coll->name(), opts);
-
-      res = trx.finish(result.result);
+            res = trx.finish(result.result);
           }
 
-      if (res.ok()) {
+          if (res.ok()) {
             if (!coll->isLocal()) { // ClusterInfo::loadPlan eventually updates status
               coll->setStatus(TRI_vocbase_col_status_e::TRI_VOC_COL_STATUS_LOADED);
             }
@@ -395,12 +392,9 @@ void RestCollectionHandler::handleCommandPut() {
 
         } else if (sub == "rotate") {
           auto ctx = transaction::StandaloneContext::Create(_vocbase);
-          SingleCollectionTransaction trx(
-            ctx, coll->id(), AccessMode::Type::WRITE
-          );
+          SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::WRITE);
 
           res = trx.begin();
-
           if (res.ok()) {
             OperationResult result = trx.rotateActiveJournal(coll->name(), OperationOptions());
             res = trx.finish(result.result);
@@ -520,7 +514,7 @@ void RestCollectionHandler::collectionRepresentation(
 
   if (showCount) {
     auto ctx = transaction::StandaloneContext::Create(_vocbase);
-    SingleCollectionTransaction trx(ctx, coll->id(), AccessMode::Type::READ);
+    SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::READ);
     Result res = trx.begin();
 
     if (res.fail()) {

@@ -34,16 +34,18 @@ using namespace arangodb;
 
 /// @brief create the transaction, using a collection id
 SingleCollectionTransaction::SingleCollectionTransaction(
-  std::shared_ptr<transaction::Context> const& transactionContext, TRI_voc_cid_t cid, 
+  std::shared_ptr<transaction::Context> const& transactionContext,
+  LogicalCollection const* collection,
   AccessMode::Type accessType)
       : transaction::Methods(transactionContext),
-        _cid(cid),
+        _cid(collection->id()),
         _trxCollection(nullptr),
         _documentCollection(nullptr),
         _accessType(accessType) {
+  TRI_ASSERT(collection != nullptr); // TODO make reference
 
   // add the (sole) collection
-  addCollection(cid, _accessType);
+  addCollection(collection->id(), collection->name(), _accessType);
   addHint(transaction::Hints::Hint::NO_DLD);
 }
 

@@ -42,7 +42,7 @@ class SingleCollectionTransaction final : public transaction::Methods {
   //////////////////////////////////////////////////////////////////////////////
 
   SingleCollectionTransaction(std::shared_ptr<transaction::Context> const&,
-                              TRI_voc_cid_t, AccessMode::Type);
+                              LogicalCollection const*, AccessMode::Type);
 
   //////////////////////////////////////////////////////////////////////////////
   /// @brief create the transaction, using a collection name

@@ -37,7 +37,7 @@ class TransactionState;
 // to be derived by storage engines
 struct TransactionData {
   TransactionState* _state = nullptr;
-  /// @brief expiry time, 0 means in use or unlimited
+  /// @brief expiry time
   double _expires;
 };
 
@@ -74,7 +74,8 @@ class TransactionManager {
   
   uint64_t getActiveTransactionCount();
   
-  TransactionState* lookup(TRI_voc_tid_t) const;
+  /// @brief lease the transaction, increases nesting
+  TransactionState* leaseTransaction(TRI_voc_tid_t) const;
   
   void garbageCollect();
   
@@ -84,7 +85,7 @@ class TransactionManager {
   
 protected:
   
-  virtual bool keepTransactionData(TransactionState*) const = 0;
+  virtual bool keepTransactionData(TransactionState const&) const = 0;
   
  private:
   // hashes the transaction id into a bucket

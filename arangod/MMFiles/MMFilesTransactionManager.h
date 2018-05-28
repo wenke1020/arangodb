@@ -37,7 +37,7 @@ class MMFilesTransactionManager final : public TransactionManager {
   ~MMFilesTransactionManager() {}
   
  protected:
-  bool keepTransactionData(TransactionState*) const override {
+  bool keepTransactionData(TransactionState const&) const override {
     return true;
   }
 };

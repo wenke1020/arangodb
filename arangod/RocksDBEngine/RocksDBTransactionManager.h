@@ -37,7 +37,10 @@ class RocksDBTransactionManager final : public TransactionManager {
   ~RocksDBTransactionManager() {}
 
  protected:
-  bool keepTransactionData(TransactionState*) const override;
+  bool keepTransactionData(TransactionState const&) const override {
+#warning TODO FIX
+    return true;
+  }
 };
 }
 

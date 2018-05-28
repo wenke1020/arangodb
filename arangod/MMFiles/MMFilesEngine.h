@@ -121,7 +121,8 @@ class MMFilesEngine final : public StorageEngine {
   TransactionManager* createTransactionManager() override;
   transaction::ContextData* createTransactionContextData() override;
   std::unique_ptr<TransactionState> createTransactionState(
-    CollectionNameResolver const& resolver,
+    TRI_vocbase_t& vocbase,
+    TRI_voc_tid_t tid,
     transaction::Options const& options
   ) override;
   TransactionCollection* createTransactionCollection(

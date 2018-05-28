@@ -139,12 +139,11 @@ transaction::ContextData* ClusterEngine::createTransactionContextData() {
 }
 
 std::unique_ptr<TransactionState> ClusterEngine::createTransactionState(
-    CollectionNameResolver const& resolver,
+    TRI_vocbase_t& vocbase,
+    TRI_voc_tid_t tid,
     transaction::Options const& options
 ) {
-  return std::make_unique<ClusterTransactionState>(
-    resolver, TRI_NewTickServer(), options
-  );
+  return std::make_unique<ClusterTransactionState>(vocbase, tid, options);
 }
 
 TransactionCollection* ClusterEngine::createTransactionCollection(

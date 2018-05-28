@@ -58,7 +58,6 @@ class Methods;
 struct Options;
 }
 
-class ExecContext;
 class TransactionCollection;
 
 /// @brief transaction type
@@ -76,7 +75,7 @@ class TransactionState {
   TransactionState& operator=(TransactionState const&) = delete;
 
   TransactionState(
-    CollectionNameResolver const& resolver,
+    TRI_vocbase_t&,
     TRI_voc_tid_t tid,
     transaction::Options const& options
   );
@@ -97,7 +96,7 @@ class TransactionState {
 
   transaction::Options& options() { return _options; }
   transaction::Options const& options() const { return _options; }
-  TRI_vocbase_t& vocbase() const { return _resolver.vocbase(); }
+  TRI_vocbase_t& vocbase() const { return _vocbase; }
   TRI_voc_tid_t id() const { return _id; }
   transaction::Status status() const { return _status; }
   bool isRunning() const { return _status == transaction::Status::RUNNING; }
@@ -135,8 +134,8 @@ class TransactionState {
                                     AccessMode::Type accessType);
 
   /// @brief add a collection to a transaction
-  int addCollection(TRI_voc_cid_t cid, AccessMode::Type accessType,
-                    int nestingLevel, bool force);
+  int addCollection(TRI_voc_cid_t cid, std::string const& cname,
+                    AccessMode::Type accessType, int nestingLevel, bool force);
 
   /// @brief make sure all declared collections are used & locked
   Result ensureCollections(int nestingLevel = 0);
@@ -194,7 +193,10 @@ class TransactionState {
   /// @brief whether or not a transaction is an exclusive transaction on a single collection
   bool isExclusiveTransactionOnSingleCollection() const;
 
-  int checkCollectionPermission(TRI_voc_cid_t cid, AccessMode::Type) const;
+  /// @brief check if current user can access this collection
+  int checkCollectionPermission(TRI_voc_cid_t cid,
+                                std::string const& cname,
+                                AccessMode::Type) const;
 
   /// @brief release collection locks for a transaction
   int releaseCollections();
@@ -203,6 +205,8 @@ class TransactionState {
   /// the transaction
   void clearQueryCache();
 
+  /// @brief vocbase
+  TRI_vocbase_t& _vocbase;
   /// @brief local trx id
   TRI_voc_tid_t const _id;
   /// @brief access type (read|write)
@@ -217,8 +221,6 @@ class TransactionState {
 
   /// @brief cache role of the server
   ServerState::RoleEnum const _serverRole;
-
-  CollectionNameResolver const& _resolver;
 
   /// transaction hints hints
   transaction::Hints _hints;
