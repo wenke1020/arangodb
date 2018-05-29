@@ -120,6 +120,8 @@ class Context {
 
   /// @brief unregister the transaction
   virtual void unregisterTransaction() noexcept = 0;
+  
+  virtual TRI_voc_tid_t generateId() const;
 
  protected:
 

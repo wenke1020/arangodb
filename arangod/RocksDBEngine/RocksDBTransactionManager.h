@@ -38,8 +38,7 @@ class RocksDBTransactionManager final : public TransactionManager {
 
  protected:
   bool keepTransactionData(TransactionState const&) const override {
-#warning TODO FIX
-    return true;
+    return false;
   }
 };
 }

@@ -77,7 +77,9 @@ static const std::string VERTICES = "vertices";
 }
 #endif
 
-BaseEngine::BaseEngine(TRI_vocbase_t& vocbase, VPackSlice info, bool needToLock)
+BaseEngine::BaseEngine(TRI_vocbase_t& vocbase,
+                       std::shared_ptr<transaction::Context> const& ctx,
+                       VPackSlice info, bool needToLock)
     : _query(nullptr), _trx(nullptr), _collections(&vocbase) {
   VPackSlice shardsSlice = info.get(SHARDS);
 
@@ -127,8 +129,6 @@ BaseEngine::BaseEngine(TRI_vocbase_t& vocbase, VPackSlice info, bool needToLock)
   // FIXME: in the future this needs to be replaced with
   // the new cluster wide transactions
   transaction::Options trxOpts;
-  auto ctx = arangodb::transaction::StandaloneContext::Create(vocbase);
-
 #ifdef USE_ENTERPRISE
   VPackSlice inaccessSlice = shardsSlice.get(INACCESSIBLE);
   if (inaccessSlice.isArray()) {
@@ -272,10 +272,11 @@ void BaseEngine::getVertexData(VPackSlice vertex, VPackBuilder& builder) {
 
 BaseTraverserEngine::BaseTraverserEngine(
     TRI_vocbase_t& vocbase,
+    std::shared_ptr<transaction::Context> const& ctx,
     VPackSlice info,
     bool needToLock
 )
-    : BaseEngine(vocbase, info, needToLock), _opts(nullptr) {}
+    : BaseEngine(vocbase, ctx, info, needToLock), _opts(nullptr) {}
 
 BaseTraverserEngine::~BaseTraverserEngine() {}
 
@@ -407,10 +408,11 @@ void BaseTraverserEngine::getVertexData(VPackSlice vertex, size_t depth,
 
 ShortestPathEngine::ShortestPathEngine(
     TRI_vocbase_t& vocbase,
+    std::shared_ptr<transaction::Context> const& ctx,
     arangodb::velocypack::Slice info,
     bool needToLock
 )
-    : BaseEngine(vocbase, info, needToLock) {
+    : BaseEngine(vocbase, ctx, info, needToLock) {
   VPackSlice optsSlice = info.get(OPTIONS);
   if (optsSlice.isNone() || !optsSlice.isObject()) {
     THROW_ARANGO_EXCEPTION_MESSAGE(
@@ -507,10 +509,11 @@ void ShortestPathEngine::getEdges(VPackSlice vertex, bool backward,
 
 TraverserEngine::TraverserEngine(
     TRI_vocbase_t& vocbase,
+    std::shared_ptr<transaction::Context> const& ctx,
     arangodb::velocypack::Slice info,
     bool needToLock
 )
-    : BaseTraverserEngine(vocbase, info, needToLock) {
+    : BaseTraverserEngine(vocbase, ctx, info, needToLock) {
 
   VPackSlice optsSlice = info.get(OPTIONS);
   if (!optsSlice.isObject()) {

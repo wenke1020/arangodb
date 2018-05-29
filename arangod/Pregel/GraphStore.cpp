@@ -34,7 +34,6 @@
 #include "Scheduler/SchedulerFeature.h"
 #include "Transaction/Methods.h"
 #include "Transaction/StandaloneContext.h"
-#include "Transaction/UserTransaction.h"
 #include "Utils/CollectionNameResolver.h"
 #include "Utils/OperationCursor.h"
 #include "Utils/OperationOptions.h"
@@ -333,12 +332,12 @@ RangeIterator<Edge<E>> GraphStore<V, E>::edgeIterator(
 
 template <typename V, typename E>
 std::unique_ptr<transaction::Methods> GraphStore<V, E>::_createTransaction() {
-  transaction::Options transactionOptions;
-  transactionOptions.waitForSync = false;
-  transactionOptions.allowImplicitCollections = true;
-  auto ctx = transaction::StandaloneContext::Create(_vocbaseGuard.database());
+  transaction::Options trxOptions;
+  trxOptions.waitForSync = false;
+  trxOptions.allowImplicitCollections = true;
+  std::shared_ptr<transaction::Context> ctx = transaction::StandaloneContext::Create(_vocbaseGuard.database());
   std::unique_ptr<transaction::Methods> trx(
-      new transaction::UserTransaction(ctx, {}, {}, {}, transactionOptions));
+                new transaction::Methods(ctx, {}, {}, {}, trxOptions));
   Result res = trx->begin();
 
   if (!res.ok()) {
@@ -495,7 +494,7 @@ template <typename V, typename E>
 void GraphStore<V, E>::_storeVertices(std::vector<ShardID> const& globalShards,
                                       RangeIterator<VertexEntry>& it) {
   // transaction on one shard
-  std::unique_ptr<transaction::UserTransaction> trx;
+  std::unique_ptr<transaction::Methods> trx;
   PregelShard currentShard = (PregelShard)-1;
   Result res = TRI_ERROR_NO_ERROR;
 
@@ -519,7 +518,7 @@ void GraphStore<V, E>::_storeVertices(std::vector<ShardID> const& globalShards,
 
       transactionOptions.waitForSync = false;
       transactionOptions.allowImplicitCollections = false;
-      trx.reset(new transaction::UserTransaction(
+      trx.reset(new transaction::Methods(
         transaction::StandaloneContext::Create(_vocbaseGuard.database()),
         {},
         {shard},

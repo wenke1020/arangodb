@@ -26,6 +26,7 @@
 
 #include "Basics/ConditionVariable.h"
 #include "Basics/ReadWriteLock.h"
+#include "Transaction/Context.h"
 #include "VocBase/voc-types.h"
 
 struct TRI_vocbase_t;
@@ -51,9 +52,10 @@ class TraverserEngineRegistry {
   ///        internally went wrong.
   TEST_VIRTUAL TraverserEngineID createNew(
     TRI_vocbase_t& vocbase,
+    std::shared_ptr<transaction::Context> const& ctx,
     arangodb::velocypack::Slice engineInfo,
-    bool needToLock,
-    double ttl = 600.0
+    double ttl,
+    bool needToLock
   );
 
   /// @brief Get the engine with the given ID.
@@ -95,6 +97,7 @@ class TraverserEngineRegistry {
 
     EngineInfo(
       TRI_vocbase_t& vocbase,
+      std::shared_ptr<transaction::Context> const&,
       arangodb::velocypack::Slice info,
       bool needToLock
     );

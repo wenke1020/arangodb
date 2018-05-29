@@ -33,6 +33,7 @@
 #include "Aql/Query.h"
 #include "Basics/Result.h"
 #include "Cluster/ClusterComm.h"
+#include "Cluster/ClusterMethods.h"
 #include "Cluster/ServerState.h"
 #include "Cluster/TraverserEngineRegistry.h"
 #include "Graph/BaseOptions.h"
@@ -856,6 +857,16 @@ Result EngineInfoContainerDBServer::buildEngines(
   std::unordered_map<std::string, std::string> headers;
   // Build Lookup Infos
   VPackBuilder infoBuilder;
+  
+  // lazily begin transactions on leaders if necessary
+  transaction::Methods* trx = _query->trx();
+  if (trx->state()->hasHint(transaction::Hints::Hint::EL_CHEAPO)) {
+    for (auto const& it : dbServerMapping) {
+      ClusterMethods::beginTransactionSubordinate(trx->state(), it.first);
+    }
+  }
+  // add the transaction ID header
+  ClusterMethods::transactionHeader(trx->state(), headers);
 
   for (auto& it : dbServerMapping) {
     std::string const serverDest = "server:" + it.first;
@@ -866,7 +877,7 @@ Result EngineInfoContainerDBServer::buildEngines(
     it.second.buildMessage(_query, infoBuilder);
     LOG_TOPIC(DEBUG, arangodb::Logger::AQL) << "Sending the Engine info: "
                                             << infoBuilder.toJson();
-
+    
     // Now we send to DBServers.
     // We expect a body with {snippets: {id => engineId}, traverserEngines:
     // [engineId]}}

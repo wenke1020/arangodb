@@ -111,6 +111,11 @@ class Query {
     _trx = trx;
     init();
   }
+  
+  /// @brief inject a transaction context to use
+  void setTransactionContext(std::shared_ptr<transaction::Context> const& ctx) {
+    _transactionContext = ctx;
+  }
 
   QueryProfile* profile() const {
     return _profile.get();
@@ -385,6 +390,9 @@ class Query {
 
   /// @brief whether or not someone else has acquired a V8 context for us
   bool const _contextOwnedByExterior;
+  
+  /// @brief transaction context to use for this query
+  std::shared_ptr<transaction::Context> _transactionContext;
 
   /// @brief whether or not the query is killed
   bool _killed;

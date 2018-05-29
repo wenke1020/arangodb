@@ -53,6 +53,11 @@ class TransactionManager {
   
   typedef std::function<void(TransactionState& state)> StatusChangeCallback;
   typedef std::function<void(TRI_voc_tid_t, TransactionData const*)> TrxCallback;
+  
+  enum class Ownership : bool {
+    Lease = true,
+    Move = false
+  };
 
   // register a list of failed transactions
   void registerFailedTransactions(std::unordered_set<TRI_voc_tid_t> const& failedTransactions);
@@ -75,8 +80,9 @@ class TransactionManager {
   uint64_t getActiveTransactionCount();
   
   /// @brief lease the transaction, increases nesting
-  TransactionState* leaseTransaction(TRI_voc_tid_t) const;
+  TransactionState* lookup(TRI_voc_tid_t, Ownership action) const;
   
+  /// @brief collect forgotten transactions
   void garbageCollect();
   
   void addStatusChangeCallback(StatusChangeCallback const* cb) {

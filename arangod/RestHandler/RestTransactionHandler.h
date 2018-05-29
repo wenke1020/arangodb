@@ -31,6 +31,7 @@
 namespace arangodb {
 
 class V8Context;
+class TransactionState;
 
 class RestTransactionHandler : public arangodb::RestVocbaseBaseHandler {
   V8Context* _v8Context;
@@ -50,6 +51,7 @@ class RestTransactionHandler : public arangodb::RestVocbaseBaseHandler {
   void executeBegin();
   void executeCommit();
   void executeAbort();
+  void generateTransactionResult(rest::ResponseCode code, TransactionState*);
   
   /// start a legacy JS transaction
   void executeJSTransaction();

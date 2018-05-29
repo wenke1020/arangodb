@@ -186,7 +186,6 @@ void RestAqlHandler::setupClusterQuery() {
   auto options = std::make_shared<VPackBuilder>(
       VPackBuilder::clone(optionsSlice));
 
-
   // Build the collection information
   VPackBuilder collectionBuilder;
   collectionBuilder.openArray();
@@ -225,11 +224,14 @@ void RestAqlHandler::setupClusterQuery() {
     ttl = arangodb::basics::StringUtils::doubleDecimal(ttlstring);
   }
 
+  // creates a StandaloneContext or a leasing context
+  auto ctx = RestVocbaseBaseHandler::transactionContext();
+  
   VPackBuilder answerBuilder;
   answerBuilder.openObject();
   bool needToLock = true;
   bool res = registerSnippets(snippetsSlice, collectionBuilder.slice(), variablesSlice,
-                              options, ttl, needToLock, answerBuilder);
+                              options, ctx, ttl, needToLock, answerBuilder);
   if (!res) {
     // TODO we need to trigger cleanup here??
     // Registering the snippets failed.
@@ -237,8 +239,7 @@ void RestAqlHandler::setupClusterQuery() {
   }
 
   if (!traverserSlice.isNone()) {
-
-    res = registerTraverserEngines(traverserSlice, needToLock, ttl, answerBuilder);
+    res = registerTraverserEngines(traverserSlice, ctx, ttl, needToLock, answerBuilder);
 
     if (!res) {
       // TODO we need to trigger cleanup here??
@@ -257,6 +258,7 @@ bool RestAqlHandler::registerSnippets(
     VPackSlice const collectionSlice,
     VPackSlice const variablesSlice,
     std::shared_ptr<VPackBuilder> options,
+    std::shared_ptr<transaction::Context> const& ctx,
     double const ttl,
     bool& needToLock,
     VPackBuilder& answerBuilder
@@ -291,6 +293,9 @@ bool RestAqlHandler::registerSnippets(
       options,
       (needToLock ? PART_MAIN : PART_DEPENDENT)
     );
+    
+    // enables the query to get the correct transaction
+    query->setTransactionContext(ctx);
 
     bool prepared = false;
     try {
@@ -321,6 +326,7 @@ bool RestAqlHandler::registerSnippets(
           JobGuard guard(SchedulerFeature::SCHEDULER);
           guard.block();
 
+          // FIXME: aren't colls locked when the first snippet calls _trx->begin() ?
           try {
             int res = query->trx()->lockCollections();
             if (res != TRI_ERROR_NO_ERROR) {
@@ -362,7 +368,11 @@ bool RestAqlHandler::registerSnippets(
   return true;
 }
 
-bool RestAqlHandler::registerTraverserEngines(VPackSlice const traverserEngines, bool& needToLock, double ttl, VPackBuilder& answerBuilder) {
+bool RestAqlHandler::registerTraverserEngines(VPackSlice const traverserEngines,
+                                              std::shared_ptr<transaction::Context> const& ctx,
+                                              double ttl,
+                                              bool& needToLock,
+                                              VPackBuilder& answerBuilder) {
   TRI_ASSERT(traverserEngines.isArray());
 
   TRI_ASSERT(answerBuilder.isOpenObject());
@@ -371,7 +381,7 @@ bool RestAqlHandler::registerTraverserEngines(VPackSlice const traverserEngines,
 
   for (auto const& te : VPackArrayIterator(traverserEngines)) {
     try {
-      auto id = _traverserRegistry->createNew(_vocbase, te, needToLock, ttl);
+      auto id = _traverserRegistry->createNew(_vocbase, ctx, te, ttl, needToLock);
 
       needToLock = false;
       TRI_ASSERT(id != 0);

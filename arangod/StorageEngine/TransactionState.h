@@ -184,7 +184,19 @@ class TransactionState {
   bool isReadOnlyTransaction() const {
     return (_type == AccessMode::Type::READ);
   }
+  
+  std::set<std::string> const& servers() const {
+    return _servers;
+  }
 
+  bool knowsServer(std::string const& uuid) const {
+    return _servers.find(uuid) != _servers.end();
+  }
+  
+  void addServer(std::string const& uuid) {
+    _servers.emplace(uuid);
+  }
+  
  protected:
   /// @brief find a collection in the transaction's list of collections
   TransactionCollection* findCollection(TRI_voc_cid_t cid,
@@ -232,7 +244,7 @@ class TransactionState {
   /// @brief a collection of stored cookies
   std::map<void const*, Cookie::ptr> _cookies;
   /// @brief servers we already talked to for this transactions
-  std::set<std::string> involvedServers;
+  std::set<std::string> _servers;
 };
 
 }

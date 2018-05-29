@@ -90,6 +90,9 @@ class ClusterTransactionCollection final : public TransactionCollection {
   AccessMode::Type _lockType;  // collection lock type, used for exclusive locks
   int _nestingLevel;  // the transaction level that added this collection
   bool _usageLocked;
+  
+  /// @brief chared ptr to the collection so we can savely use _collection
+  std::shared_ptr<LogicalCollection> _sharedCollection;
 };
 }
 

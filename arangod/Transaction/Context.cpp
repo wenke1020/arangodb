@@ -23,6 +23,7 @@
 
 #include "Context.h"
 #include "Basics/StringBuffer.h"
+#include "Cluster/ClusterInfo.h"
 #include "StorageEngine/EngineSelectorFeature.h"
 #include "StorageEngine/StorageEngine.h"
 #include "StorageEngine/TransactionManager.h"
@@ -200,4 +201,9 @@ transaction::ContextData* transaction::Context::contextData() {
   }
 
   return _contextData.get();
+}
+
+TRI_voc_tid_t transaction::Context::generateId() const {
+  return ServerState::instance()->isCoordinator() ?
+         ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
 }

@@ -44,6 +44,7 @@ class Slice;
 }
 
 struct OperationOptions;
+class TransactionState;
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief creates a copy of all HTTP headers to forward
@@ -86,7 +87,7 @@ int figuresOnCoordinator(std::string const& dbname, std::string const& collname,
 /// @brief counts number of documents in a coordinator, by shard
 ////////////////////////////////////////////////////////////////////////////////
 
-int countOnCoordinator(std::string const& dbname, std::string const& collname,
+int countOnCoordinator(arangodb::TransactionState*, std::string const& collname,
                        std::vector<std::pair<std::string, uint64_t>>& result,
                        bool sendNoLockHeader);
   
@@ -102,7 +103,7 @@ int selectivityEstimatesOnCoordinator(std::string const& dbname, std::string con
 ////////////////////////////////////////////////////////////////////////////////
 
 Result createDocumentOnCoordinator(
-    std::string const& dbname, std::string const& collname,
+    arangodb::TransactionState*, std::string const& collname,
     OperationOptions const& options, arangodb::velocypack::Slice const& slice,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounters,
@@ -113,7 +114,7 @@ Result createDocumentOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int deleteDocumentOnCoordinator(
-    std::string const& dbname, std::string const& collname,
+    arangodb::TransactionState*, std::string const& collname,
     VPackSlice const slice, OperationOptions const& options,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounters,
@@ -124,7 +125,7 @@ int deleteDocumentOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int getDocumentOnCoordinator(
-    std::string const& dbname, std::string const& collname,
+    arangodb::TransactionState*, std::string const& collname,
     VPackSlice const slice, OperationOptions const& options,
     std::unique_ptr<std::unordered_map<std::string, std::string>> headers,
     arangodb::rest::ResponseCode& responseCode,
@@ -198,7 +199,7 @@ void fetchVerticesFromEngines(
 ///        it will be inserted into the result.
 ///        If no server responds with a document
 ///        a 'null' will be inserted into the result.
-///        ShortestPath Variant
+///        ShortestPath Variant. TraversalEngines already have a transaction
 
 void fetchVerticesFromEngines(
     std::string const&,
@@ -225,7 +226,7 @@ int getFilteredEdgesOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int modifyDocumentOnCoordinator(
-    std::string const& dbname, std::string const& collname,
+    arangodb::TransactionState*, std::string const& collname,
     arangodb::velocypack::Slice const& slice, OperationOptions const& options,
     bool isPatch,
     std::unique_ptr<std::unordered_map<std::string, std::string>>& headers,
@@ -237,8 +238,8 @@ int modifyDocumentOnCoordinator(
 /// @brief truncate a cluster collection on a coordinator
 ////////////////////////////////////////////////////////////////////////////////
 
-int truncateCollectionOnCoordinator(std::string const& dbname,
-                                    std::string const& collname);
+  int truncateCollectionOnCoordinator(std::string const& dbname,
+                                      std::string const& collname);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief flush Wal on all DBservers
@@ -272,6 +273,25 @@ class ClusterMethods {
       bool waitForSyncReplication,
       bool enforceReplicationFactor
     );
+  
+  /// @brief lazy begin a transaction on leaders
+  static arangodb::Result beginTransaction(arangodb::TransactionState* state,
+                                           std::shared_ptr<LogicalCollection> const&,
+                                           std::string const& shard);
+  
+  /// @brief lazy begin a transaction on leader or followers
+  static arangodb::Result beginTransactionSubordinate(arangodb::TransactionState* state,
+                                                      ServerID const& server);
+  
+  /// @brief commit a transaction on a subordinate
+  static arangodb::Result commitTransaction(arangodb::TransactionState* state);
+  
+  /// @brief commit a transaction on a subordinate
+  static arangodb::Result abortTransaction(arangodb::TransactionState* state);
+  
+  /// @brief set the transaction ID header
+  static void transactionHeader(arangodb::TransactionState* state,
+                                std::unordered_map<std::string, std::string>& headers);
 
  private:
 

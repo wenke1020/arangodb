@@ -1,8 +1,12 @@
 #include "Transactions.h"
 #include <v8.h>
 
+#include "Basics/WriteLocker.h"
+#include "Basics/ReadLocker.h"
+#include "Cluster/ServerState.h"
+#include "Logger/Logger.h"
+#include "Transaction/Methods.h"
 #include "Transaction/Options.h"
-#include "Transaction/UserTransaction.h"
 #include "Transaction/V8Context.h"
 #include "V8/v8-conv.h"
 #include "V8/v8-vpack.h"
@@ -10,10 +14,9 @@
 #include "V8Server/V8Context.h"
 #include "V8Server/V8DealerFeature.h"
 #include "V8Server/v8-vocbaseprivate.h"
-#include "Logger/Logger.h"
+
 #include <velocypack/Slice.h>
-#include "Basics/WriteLocker.h"
-#include "Basics/ReadLocker.h"
+
 
 #ifdef USE_ENTERPRISE
 #include "Enterprise/Transaction/IgnoreNoAccessMethods.h"
@@ -321,9 +324,17 @@ Result executeTransactionJS(
     std::make_shared<transaction::V8Context>(vocbase, embed);
 
   // start actual transaction
-  std::unique_ptr<transaction::Methods> trx(new transaction::UserTransaction(transactionContext, readCollections,
-                                            writeCollections, exclusiveCollections,
-                                            trxOptions));
+  auto trx = std::make_unique<transaction::Methods>(transactionContext, readCollections,
+                                                    writeCollections, exclusiveCollections,
+                                                    trxOptions);
+  if (ServerState::instance()->isCoordinator()) {
+    // we need to run this as a cluster-wide transaction, but we do not
+    // want this to be managed by the TransactionManager
+    trx->addHint(transaction::Hints::Hint::EL_CHEAPO);
+    // transactionmanager checks for this flag and skips the transaction
+    // the flag has no effect on the coordinator anyway
+    trx->addHint(transaction::Hints::Hint::SINGLE_OPERATION);
+  }
 
   rv = trx->begin();
 

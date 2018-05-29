@@ -615,12 +615,12 @@ transaction::Methods::Methods(
   TransactionState* parent = _transactionContextPtr->leaseParentTransaction();
 
   if (parent != nullptr) { // yes, we are embedded
+    // leaseParentTransaction did implicitly call state->increaseNesting()
     if (!_transactionContextPtr->isEmbeddable()) {
+      parent->decreaseNesting(); // return the leased trx, leaks otherwise
       // we are embedded but this is disallowed...
-      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_NESTED,
-                                     "concurrent use of transaction is not allowed");
+      THROW_ARANGO_EXCEPTION(TRI_ERROR_TRANSACTION_NESTED);
     }
-    // leaseParentTransaction will implicitly call state->increaseNesting()
     _state = parent;
     TRI_ASSERT(_state != nullptr && _state->isEmbeddedTransaction());
     
@@ -628,8 +628,8 @@ transaction::Methods::Methods(
     // now start our own transaction
     StorageEngine* engine = EngineSelectorFeature::ENGINE;
     TRI_vocbase_t& vocbase = _transactionContextPtr->vocbase();
-    TRI_voc_tick_t tid = ServerState::instance()->isCoordinator() ?
-                         ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
+    
+    TRI_voc_tick_t tid = _transactionContextPtr->generateId();
     _state = engine->createTransactionState(vocbase, tid, options).release();
     TRI_ASSERT(_state != nullptr);
 
@@ -638,6 +638,28 @@ transaction::Methods::Methods(
   }
 
   TRI_ASSERT(_state != nullptr);
+}
+
+/// @brief create the transaction, used to be UserTransaction
+transaction::Methods::Methods(std::shared_ptr<transaction::Context> const& ctx,
+      std::vector<std::string> const& readCollections,
+      std::vector<std::string> const& writeCollections,
+      std::vector<std::string> const& exclusiveCollections,
+      transaction::Options const& options)
+      : transaction::Methods(ctx, options) {
+  addHint(transaction::Hints::Hint::LOCK_ENTIRELY);
+  
+  for (auto const& it : exclusiveCollections) {
+    addCollection(it, AccessMode::Type::EXCLUSIVE);
+  }
+  
+  for (auto const& it : writeCollections) {
+    addCollection(it, AccessMode::Type::WRITE);
+  }
+  
+  for (auto const& it : readCollections) {
+    addCollection(it, AccessMode::Type::READ);
+  }
 }
 
 /// @brief destroy the transaction
@@ -769,13 +791,12 @@ Result transaction::Methods::begin() {
                                    "invalid transaction state");
   }
 
-  if (_state->isCoordinator()) {
+  /*if (_state->isCoordinator()) {
     if (_state->isTopLevelTransaction()) {
       _state->updateStatus(transaction::Status::RUNNING);
     }
     return Result();
-  }
-
+  }*/
   return _state->beginTransaction(_localHints);
 }
 
@@ -798,12 +819,12 @@ Result transaction::Methods::commit() {
     }
   }
 
-  if (_state->isCoordinator()) {
+  /*if (_state->isCoordinator()) {
     if (_state->isTopLevelTransaction()) {
       _state->updateStatus(transaction::Status::COMMITTED);
     }
     return Result();
-  }
+  }*/
 
   return _state->commitTransaction(this);
 }
@@ -815,13 +836,13 @@ Result transaction::Methods::abort() {
     return Result(TRI_ERROR_TRANSACTION_INTERNAL, "transaction not running on abort");
   }
 
-  if (_state->isCoordinator()) {
+  /*if (_state->isCoordinator()) {
     if (_state->isTopLevelTransaction()) {
       _state->updateStatus(transaction::Status::ABORTED);
     }
 
     return Result();
-  }
+  }*/
 
   return _state->abortTransaction(this);
 }
@@ -1630,8 +1651,17 @@ OperationResult transaction::Methods::insertLocal(
         // Now prepare the requests:
         std::vector<ClusterCommRequest> requests;
         for (auto const& f : *followers) {
+          
+#warning FIXME
+          Result r = ClusterMethods::beginTransactionSubordinate(_state, f);
+          if (r.fail()) {
+            
+          }
+          
+          auto headers = std::make_unique<std::unordered_map<std::string, std::string>>();
+          ClusterMethods::transactionHeader(_state, *headers);
           requests.emplace_back("server:" + f, arangodb::rest::RequestType::POST,
-              path, body);
+                                path, body, std::move(headers));
         }
         auto cc = arangodb::ClusterComm::instance();
         if (cc != nullptr) {
@@ -2947,7 +2977,7 @@ arangodb::LogicalCollection* transaction::Methods::documentCollection(
 }
 
 /// @brief add a collection by id, with the name supplied
-Result transaction::Methods::addCollection(TRI_voc_cid_t cid, char const* name,
+Result transaction::Methods::addCollection(TRI_voc_cid_t cid, std::string const& name,
                                            AccessMode::Type type) {
   if (_state == nullptr) {
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_INTERNAL,
@@ -2966,7 +2996,7 @@ Result transaction::Methods::addCollection(TRI_voc_cid_t cid, char const* name,
 
   if (cid == 0) {
     // invalid cid
-    throwCollectionNotFound(name);
+    throwCollectionNotFound(name.c_str());
   }
 
   Result res;
@@ -3026,19 +3056,6 @@ Result transaction::Methods::addCollection(TRI_voc_cid_t cid, char const* name,
     : Result(TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND)
     ;
 }
-
-/// @brief add a collection by id, with the name supplied
-Result transaction::Methods::addCollection(TRI_voc_cid_t cid,
-                                           std::string const& name,
-                                           AccessMode::Type type) {
-  return addCollection(cid, name.c_str(), type);
-}
-
-/// @brief add a collection by id
-/*Result transaction::Methods::addCollection(TRI_voc_cid_t cid,
-                                           AccessMode::Type type) {
-  return addCollection(cid, nullptr, type);
-}*/
 
 /// @brief add a collection by name
 Result transaction::Methods::addCollection(std::string const& name,
@@ -3204,13 +3221,11 @@ transaction::Methods::IndexHandle transaction::Methods::getIndexByIdentifier(
 
 /// @brief add a collection to an embedded transaction
 Result transaction::Methods::addCollectionEmbedded(TRI_voc_cid_t cid,
-                                                   char const* name,
+                                                   std::string const& cname,
                                                    AccessMode::Type type) {
   TRI_ASSERT(_state != nullptr);
 
-  std::string cname = resolver()->getCollectionNameCluster(cid);
   int res = _state->addCollection(cid, cname, type, _state->nestingLevel(), false);
-
   if (res != TRI_ERROR_NO_ERROR) {
     if (res == TRI_ERROR_TRANSACTION_UNREGISTERED_COLLECTION) {
       // special error message to indicate which collection was undeclared
@@ -3218,7 +3233,7 @@ Result transaction::Methods::addCollectionEmbedded(TRI_voc_cid_t cid,
           res, std::string(TRI_errno_string(res)) + ": " + cname + " [" +
                    AccessMode::typeString(type) + "]");
     } else if (res == TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND) {
-      throwCollectionNotFound(name);
+      throwCollectionNotFound(cname.c_str());
     }
     THROW_ARANGO_EXCEPTION(res);
   }
@@ -3228,10 +3243,9 @@ Result transaction::Methods::addCollectionEmbedded(TRI_voc_cid_t cid,
 
 /// @brief add a collection to a top-level transaction
 Result transaction::Methods::addCollectionToplevel(TRI_voc_cid_t cid,
-                                                   char const* name,
+                                                   std::string const& cname,
                                                    AccessMode::Type type) {
   TRI_ASSERT(_state != nullptr);
-  std::string cname = resolver()->getCollectionNameCluster(cid);
   
   int res;
   if (_state->status() != transaction::Status::CREATED) {
@@ -3248,7 +3262,7 @@ Result transaction::Methods::addCollectionToplevel(TRI_voc_cid_t cid,
           res, std::string(TRI_errno_string(res)) + ": " + cname + " [" +
                    AccessMode::typeString(type) + "]");
     } else if (res == TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND) {
-      throwCollectionNotFound(name);
+      throwCollectionNotFound(cname.c_str());
     }
     THROW_ARANGO_EXCEPTION(res);
   }

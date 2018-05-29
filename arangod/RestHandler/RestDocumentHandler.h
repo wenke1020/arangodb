@@ -28,6 +28,7 @@
 #include "RestHandler/RestVocbaseBaseHandler.h"
 
 namespace arangodb {
+  
 class RestDocumentHandler : public RestVocbaseBaseHandler {
  public:
   RestDocumentHandler(GeneralRequest*, GeneralResponse*);

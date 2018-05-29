@@ -25,7 +25,10 @@
 
 #include "Basics/ReadLocker.h"
 #include "Basics/WriteLocker.h"
+#include "Logger/Logger.h"
 #include "StorageEngine/TransactionState.h"
+#include "Transaction/LeasedContext.h"
+#include "Transaction/Methods.h"
 
 using namespace arangodb;
 
@@ -61,7 +64,8 @@ void TransactionManager::registerTransaction(TransactionState& state, std::uniqu
   TRI_ASSERT(data != nullptr);
   _nrRunning.fetch_add(1, std::memory_order_relaxed);
   
-  bool isGlobal = state.hasHint(transaction::Hints::Hint::GLOBAL);
+  bool isGlobal = state.hasHint(transaction::Hints::Hint::EL_CHEAPO) &&
+                  !state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION);
   if (!isGlobal && !keepTransactionData(state)) {
     return;
   }
@@ -74,6 +78,11 @@ void TransactionManager::registerTransaction(TransactionState& state, std::uniqu
   if (isGlobal) {
     data->_state = &state;
     data->_expires = TRI_microtime() + defaultTTL;
+    if (_transactions[bucket]._activeTransactions.find(state.id()) !=
+        _transactions[bucket]._activeTransactions.end()) {
+      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_INTERNAL,
+                                     "Duplicate transaction ID");
+    }
   }
   
   // insert into currently running list of transactions
@@ -142,28 +151,53 @@ uint64_t TransactionManager::getActiveTransactionCount() {
   return count;*/
 }
 
-TransactionState* TransactionManager::leaseTransaction(TRI_voc_tid_t transactionId) const {
+/// @brief lease the transaction, increases nesting
+TransactionState* TransactionManager::lookup(TRI_voc_tid_t transactionId,
+                                               TransactionManager::Ownership action) const {
   size_t bucket = getBucket(transactionId);
   READ_LOCKER(allTransactionsLocker, _allTransactionsLock);
   
   READ_LOCKER(writeLocker, _transactions[bucket]._lock);
   
-  auto const& it = _transactions[bucket]._activeTransactions.find(transactionId);
-  if (it != _transactions[bucket]._activeTransactions.end()) {
+  auto const& buck = _transactions[bucket];
+  auto const& it = buck._activeTransactions.find(transactionId);
+  if (it != buck._activeTransactions.end()) {
     if (it->second->_state != nullptr) {
-      TRI_ASSERT(it->second->_state->hasHint(transaction::Hints::Hint::GLOBAL));
-      if (it->second->_state->isEmbeddedTransaction()) {
+      TransactionState* const state = it->second->_state;
+      TRI_ASSERT(state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
+      if (state->isEmbeddedTransaction()) {
         THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_INTERNAL,
                                        "Concurrent use of transaction");
       }
-      it->second->_expires = defaultTTL + TRI_microtime();
-      it->second->_state->increaseNesting();
-      return it->second->_state;
+      if (action == Ownership::Lease) {
+        it->second->_expires = defaultTTL + TRI_microtime();
+        state->increaseNesting();
+      } else /*if (action == Ownership::Move)*/ {
+        it->second->_state = nullptr; // no longer manage this
+      }
+      return state;
     }
   }
+  
+  // as recourse check if this is a known failed transaction
+  auto const& it2 = buck._failedTransactions.find(transactionId);
+  if (it2 != buck._failedTransactions.end()) {
+    THROW_ARANGO_EXCEPTION(TRI_ERROR_TRANSACTION_ABORTED);
+  }
+  
   return nullptr;
 }
 
+struct GCTransaction final : transaction::Methods {
+  
+  GCTransaction(std::shared_ptr<transaction::LeasedContext> const& ctx,
+                transaction::Options const& opts)
+  : Methods(ctx, opts) {
+    TRI_ASSERT(_state->isEmbeddedTransaction());
+  }
+};
+
+/// @brief collect forgotten transactions
 void TransactionManager::garbageCollect() {
   READ_LOCKER(allTransactionsLocker, _allTransactionsLock);
   
@@ -171,18 +205,35 @@ void TransactionManager::garbageCollect() {
     WRITE_LOCKER(locker, _transactions[bucket]._lock);
     
     double now = TRI_microtime();
-    for (auto const& it : _transactions[bucket]._activeTransactions) {
+    auto it = _transactions[bucket]._activeTransactions.begin();
+    while (it != _transactions[bucket]._activeTransactions.end()) {
       // we only concern ourselves with global transactions
-      if (it.second->_state != nullptr) {
-        TRI_ASSERT(it.second->_state->hasHint(transaction::Hints::Hint::GLOBAL));
-        if (it.second->_state->isTopLevelTransaction()) {
-          if (it.second->_expires > now) {
-#warning TODO cleanup
+      if (it->second->_state != nullptr) {
+        TransactionState* state = it->second->_state;
+        TRI_ASSERT(state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
+        if (state->isTopLevelTransaction()) { // embedded means leased out
+          // aborted transactions must be cleanead up by the aborting thread
+          if (state->isRunning() && it->second->_expires > now) {
+            
+            const TRI_voc_tid_t tid = state->id();
+            auto ctx = std::make_shared<transaction::LeasedContext>(state->vocbase(), state);
+            transaction::Options trxOpts;
+            GCTransaction trx(ctx, trxOpts);
+            TRI_ASSERT(trx.state()->status() == transaction::Status::RUNNING);
+            Result res = trx.abort(); // should delete state
+            if (res.ok()) {
+              LOG_TOPIC(WARN, Logger::TRANSACTIONS) << "failed to GC transaction: " << res.errorMessage();
+            }
+            it = _transactions[bucket]._activeTransactions.erase(it);
+            _transactions[bucket]._failedTransactions.emplace(tid);
+            continue;
           }
         } else {
-          it.second->_expires = defaultTTL + TRI_microtime();
+          // auto extend lifetime of leased transactions
+          it->second->_expires = defaultTTL + TRI_microtime();
         }
       }
+      ++it; // next
     }
   }
 }

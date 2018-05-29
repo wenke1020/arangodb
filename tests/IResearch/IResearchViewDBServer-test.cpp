@@ -835,7 +835,8 @@ SECTION("test_transaction_snapshot") {
   {
     arangodb::CollectionNameResolver resolver(vocbase);
     auto state = s.engine.createTransactionState(resolver, arangodb::transaction::Options());
-    wiewImpl->apply(*state);
+    //wiewImpl->apply(*state);
+#warning FIX
     state->updateStatus(arangodb::transaction::Status::RUNNING);
     auto* snapshot = wiewImpl->snapshot(*state);
     CHECK((nullptr != snapshot));
@@ -847,7 +848,8 @@ SECTION("test_transaction_snapshot") {
   {
     arangodb::CollectionNameResolver resolver(vocbase);
     auto state = s.engine.createTransactionState(resolver, arangodb::transaction::Options());
-    wiewImpl->apply(*state);
+    //wiewImpl->apply(*state);
+#warning FIX
     state->updateStatus(arangodb::transaction::Status::RUNNING);
     auto* snapshot = wiewImpl->snapshot(*state, true);
     CHECK((nullptr != snapshot));
@@ -859,7 +861,8 @@ SECTION("test_transaction_snapshot") {
   {
     arangodb::CollectionNameResolver resolver(vocbase);
     auto state = s.engine.createTransactionState(resolver, arangodb::transaction::Options());
-    wiewImpl->apply(*state);
+    //wiewImpl->apply(*state);
+#warning FIX
     state->updateStatus(arangodb::transaction::Status::RUNNING);
     state->waitForSync(true);
     auto* snapshot = wiewImpl->snapshot(*state, true);
@@ -873,7 +876,8 @@ SECTION("test_transaction_snapshot") {
     arangodb::CollectionNameResolver resolver(vocbase);
     auto state = s.engine.createTransactionState(resolver, arangodb::transaction::Options());
     state->waitForSync(true);
-    wiewImpl->apply(*state);
+    //wiewImpl->apply(*state);
+#warning FIX
     state->updateStatus(arangodb::transaction::Status::RUNNING);
     state->waitForSync(false);
     auto* snapshot = wiewImpl->snapshot(*state, true);

@@ -35,14 +35,18 @@ class TransactionState;
 
 namespace transaction {
 
-class GlobalContext final : public Context {
+/// transaction context that will lease a TransactionState
+/// from the TransactionManager
+class LeasedContext final : public Context {
  public:
 
-  /// @brief create the context
-  explicit GlobalContext(TRI_vocbase_t& vocbase);
+  /// @brief create the context, will try to lease transaction from manager
+  explicit LeasedContext(TRI_vocbase_t& vocbase, TRI_voc_tid_t, bool allowCreating);
+  /// @brief create the context, will use given transaction
+  explicit LeasedContext(TRI_vocbase_t& vocbase, TransactionState*);
 
   /// @brief destroy the context
-  ~GlobalContext() = default;
+  ~LeasedContext() = default;
 
   /// @brief order a custom type handler
   std::shared_ptr<arangodb::velocypack::CustomTypeHandler>
@@ -62,13 +66,15 @@ class GlobalContext final : public Context {
 
   /// @brief whether or not the transaction is embeddable
   bool isEmbeddable() const override;
-
-  /// @brief create a context, returned in a shared ptr
-  static std::shared_ptr<transaction::GlobalContext> Create(
-    TRI_vocbase_t& vocbase);
   
-  /// @brief register as the current transaction
-  static void registerTransaction(TRI_voc_tid_t tid);
+  /// @brief generate a transaction ID for this
+  TRI_voc_tid_t generateId() const override;
+  
+private:
+  /// @brief ID of the transaction to use
+  TRI_voc_tid_t const _tid;
+  bool const _allowCreatingNew;
+  TransactionState *_state;
 };
 
 }

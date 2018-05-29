@@ -32,6 +32,8 @@
 #include "StorageEngine/TransactionManager.h"
 #include "StorageEngine/TransactionManagerFeature.h"
 #include "StorageEngine/TransactionState.h"
+#include "Transaction/LeasedContext.h"
+#include "Transaction/Methods.h"
 #include "V8Server/V8Context.h"
 #include "V8Server/V8DealerFeature.h"
 #include "VocBase/Methods/Transactions.h"
@@ -43,6 +45,15 @@
 using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
+
+struct ManagingTransaction final : transaction::Methods {
+  
+  ManagingTransaction(std::shared_ptr<transaction::LeasedContext> const& ctx,
+                      transaction::Options const& opts)
+  : Methods(ctx, opts) {
+    TRI_ASSERT(_state->isEmbeddedTransaction());
+  }
+};
 
 RestTransactionHandler::RestTransactionHandler(GeneralRequest* request, GeneralResponse* response)
   : RestVocbaseBaseHandler(request, response)
@@ -95,7 +106,7 @@ void RestTransactionHandler::executeGetState() {
   }
   
   TransactionManager* mgr = TransactionManagerFeature::manager();
-  TransactionState* state = mgr->leaseTransaction(tid);
+  TransactionState* state = mgr->lookup(tid, TransactionManager::Ownership::Lease);
   TRI_DEFER(state->decreaseNesting());
   
   VPackBuilder b;
@@ -112,11 +123,25 @@ void RestTransactionHandler::executeBegin() {
   TRI_ASSERT(_request->suffixes().size() == 1 &&
              _request->suffixes()[0] == "begin");
   
-  if (!ServerState::instance()->isSingleServerOrCoordinator()) {
-    generateError(rest::ResponseCode::BAD, TRI_ERROR_NOT_IMPLEMENTED,
-                  "Not supported on this server type");
+  // figure out the transaction ID
+  TRI_voc_tid_t tid = 0;
+  bool found = false;
+  std::string value = _request->header(StaticStrings::TransactionId, found);
+  if (found) {
+    tid = basics::StringUtils::uint64(value);
+    if (tid == 0) { // tid % 3 == 0
+      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
+    }
+  } else {
+    if (!ServerState::instance()->isSingleServerOrCoordinator()) {
+      generateError(rest::ResponseCode::BAD, TRI_ERROR_NOT_IMPLEMENTED,
+                    "Not supported on this server type");
+    }
+    tid = ServerState::instance()->isCoordinator() ?
+          ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
   }
-  
+  TRI_ASSERT(tid != 0);
+
   bool parseSuccess = false;
   VPackSlice body = parseVPackBody(parseSuccess);
   if (!parseSuccess) {
@@ -162,11 +187,7 @@ void RestTransactionHandler::executeBegin() {
     return;
   }
   
-  // generate the transaction ID
-  TRI_voc_tick_t tid = ServerState::instance()->isCoordinator() ?
-                       ClusterInfo::instance()->uniqid(1) : TRI_NewTickServer();
-  TRI_ASSERT(tid != 0);
-  
+
   // now start our own transaction
   StorageEngine* engine = EngineSelectorFeature::ENGINE;
   auto state = engine->createTransactionState(_vocbase, tid, trxOptions);
@@ -195,27 +216,20 @@ void RestTransactionHandler::executeBegin() {
   // start the transaction
   transaction::Hints hints;
   hints.set(transaction::Hints::Hint::LOCK_ENTIRELY);
-  hints.set(transaction::Hints::Hint::GLOBAL);
-  // will register itself with the manager
+  hints.set(transaction::Hints::Hint::EL_CHEAPO);
+  // will register itself with the transaction manager
   state->beginTransaction(hints);
   TRI_ASSERT(state->status() == transaction::Status::RUNNING);
   
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
   TransactionManager* mgr = TransactionManagerFeature::manager();
-  TransactionState* stat = mgr->leaseTransaction(tid);
-  TRI_ASSERT(stat != nullptr);
-  state->decreaseNesting(); // release again
+  TransactionState* tmp = mgr->lookup(tid, TransactionManager::Ownership::Lease);
+  TRI_ASSERT(tmp != nullptr);
+  tmp->decreaseNesting(); // release
 #endif
   
-  VPackBuilder b;
-  b.openObject();
-  b.add("id", VPackValue(std::to_string(state->id())));
-  b.add("state", VPackValue(transaction::statusString(state->status())));
-  b.add("options", VPackValue(VPackValueType::Object));
-  state->options().toVelocyPack(b);
-  b.close();
-  b.close();
-  generateOk(rest::ResponseCode::OK, b.slice());
+  generateTransactionResult(rest::ResponseCode::CREATED, state.get());
+  state.release(); // this is owned by the TransactionManager now
 }
 
 void RestTransactionHandler::executeCommit() {
@@ -230,7 +244,28 @@ void RestTransactionHandler::executeCommit() {
     return;
   }
   
+  TransactionManager* mgr = TransactionManagerFeature::manager();
+  std::unique_ptr<TransactionState> state(mgr->lookup(tid, TransactionManager::Ownership::Move));
+  if (!state) {
+    generateError(rest::ResponseCode::NOT_FOUND, TRI_ERROR_TRANSACTION_NOT_FOUND);
+    return;
+  }
+  TRI_DEFER(state->decreaseNesting());
   
+  auto ctx = std::make_shared<transaction::LeasedContext>(_vocbase, state.get());
+  transaction::Options trxOpts;
+  ManagingTransaction trx(ctx, trxOpts);
+  TRI_ASSERT(trx.state()->isRunning());
+  TRI_ASSERT(trx.state()->isTopLevelTransaction());
+  state.release(); // top-level transactions are now owned by transaction::Methods
+  Result res = trx.commit();
+  TRI_ASSERT(!trx.state()->isRunning());
+  
+  if (res.fail()) {
+    generateError(res);
+  } else {
+    generateTransactionResult(rest::ResponseCode::OK, trx.state());
+  }
 }
 
 void RestTransactionHandler::executeAbort() {
@@ -245,7 +280,43 @@ void RestTransactionHandler::executeAbort() {
     return;
   }
   
+  TransactionManager* mgr = TransactionManagerFeature::manager();
+  std::unique_ptr<TransactionState> state(mgr->lookup(tid, TransactionManager::Ownership::Move));
+  if (!state) {
+    generateError(rest::ResponseCode::NOT_FOUND, TRI_ERROR_TRANSACTION_NOT_FOUND);
+    return;
+  }
+  TRI_DEFER(state->decreaseNesting());
+  
+  auto ctx = std::make_shared<transaction::LeasedContext>(_vocbase, state.get());
+  transaction::Options trxOpts;
+  ManagingTransaction trx(ctx, trxOpts);
+  TRI_ASSERT(trx.state()->status() == transaction::Status::RUNNING);
+  TRI_ASSERT(trx.state()->isTopLevelTransaction());
+  state.release(); // top-level transactions are now owned by transaction::Methods
+  Result res = trx.abort();
+  
+  if (res.fail()) {
+    generateError(res);
+  } else {
+    generateTransactionResult(rest::ResponseCode::OK, trx.state());
+  }
 }
+
+void RestTransactionHandler::generateTransactionResult(rest::ResponseCode code, TransactionState* state) {
+  VPackBuilder b;
+  b.openObject();
+  b.add("id", VPackValue(std::to_string(state->id())));
+  b.add("state", VPackValue(transaction::statusString(state->status())));
+  if (state->status() == transaction::Status::RUNNING) {
+    b.add("options", VPackValue(VPackValueType::Object));
+    state->options().toVelocyPack(b);
+    b.close();
+  }
+  b.close();
+  generateOk(code, b.slice());
+}
+
 
 
 // ====================== V8 stuff ===================

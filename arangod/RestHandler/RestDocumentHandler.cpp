@@ -27,8 +27,8 @@
 #include "Basics/StringUtils.h"
 #include "Basics/VelocyPackHelper.h"
 #include "Rest/HttpRequest.h"
+#include "Transaction/Context.h"
 #include "Transaction/Hints.h"
-#include "Transaction/StandaloneContext.h"
 #include "Utils/OperationOptions.h"
 #include "Utils/SingleCollectionTransaction.h"
 #include "VocBase/vocbase.h"
@@ -122,7 +122,7 @@ bool RestDocumentHandler::createDocument() {
                          opOptions.isSynchronousReplicationFrom);
 
   // find and load collection given by name or identifier
-  auto ctx = transaction::StandaloneContext::Create(_vocbase);
+  std::shared_ptr<transaction::Context> ctx = transactionContext();
   SingleCollectionTransaction trx(ctx, collectionName, AccessMode::Type::WRITE);
   bool const isMultiple = body.isArray();
 
@@ -229,7 +229,7 @@ bool RestDocumentHandler::readSingleDocument(bool generateBody) {
   VPackSlice search = builder.slice();
 
   // find and load collection given by name or identifier
-  auto ctx(transaction::StandaloneContext::Create(_vocbase));
+  std::shared_ptr<transaction::Context> ctx = transactionContext();
   SingleCollectionTransaction trx(ctx, collection, AccessMode::Type::READ);
 
   trx.addHint(transaction::Hints::Hint::SINGLE_OPERATION);
@@ -414,7 +414,7 @@ bool RestDocumentHandler::modifyDocument(bool isPatch) {
   }
 
   // find and load collection given by name or identifier
-  auto ctx = transaction::StandaloneContext::Create(_vocbase);
+  std::shared_ptr<transaction::Context> ctx = transactionContext();
   SingleCollectionTransaction trx(ctx, collectionName, AccessMode::Type::WRITE);
 
   if (!isArrayCase) {
@@ -510,7 +510,6 @@ bool RestDocumentHandler::deleteDocument() {
   extractStringParameter(StaticStrings::IsSynchronousReplicationString,
                          opOptions.isSynchronousReplicationFrom);
 
-  auto ctx = transaction::StandaloneContext::Create(_vocbase);
   VPackBuilder builder;
   VPackSlice search;
   std::shared_ptr<VPackBuilder> builderPtr;
@@ -549,6 +548,7 @@ bool RestDocumentHandler::deleteDocument() {
     return false;
   }
 
+  std::shared_ptr<transaction::Context> ctx = transactionContext();
   SingleCollectionTransaction trx(ctx, collectionName, AccessMode::Type::WRITE);
   if (suffixes.size() == 2 || !search.isArray()) {
     trx.addHint(transaction::Hints::Hint::SINGLE_OPERATION);
@@ -600,7 +600,7 @@ bool RestDocumentHandler::readManyDocuments() {
   OperationOptions opOptions;
   opOptions.ignoreRevs = _request->parsedValue(StaticStrings::IgnoreRevsString, true);
 
-  auto ctx = transaction::StandaloneContext::Create(_vocbase);
+  std::shared_ptr<transaction::Context> ctx = transactionContext();
   SingleCollectionTransaction trx(ctx, collectionName,
                                   AccessMode::Type::READ);
 

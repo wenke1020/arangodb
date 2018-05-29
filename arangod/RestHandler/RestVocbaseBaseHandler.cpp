@@ -34,6 +34,7 @@
 #include "Meta/conversion.h"
 #include "Rest/HttpRequest.h"
 #include "Transaction/Methods.h"
+#include "Transaction/LeasedContext.h"
 #include "Transaction/StandaloneContext.h"
 
 #include <velocypack/Builder.h>
@@ -564,4 +565,29 @@ void RestVocbaseBaseHandler::finalizeExecute() {
   CollectionLockState::_noLockHeaders = nullptr;
 
   RestBaseHandler::finalizeExecute();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief retrieve a correct transaction context
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<transaction::Context> RestVocbaseBaseHandler::transactionContext() {
+  bool found = false;
+  std::string value = _request->header(StaticStrings::TransactionId, found);
+  if (found) {
+    TRI_voc_tid_t tid = 0;
+    std::size_t pos = 0;
+    try {
+      tid = std::stoull(value, &pos, 10);
+    } catch (...) {}
+    if (tid == 0) {
+      THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
+    }
+    bool allowCreateNew = false;
+    if (pos > 0 && pos < value.size()) {
+      allowCreateNew = value.substr(pos) == " begin";
+    }
+    return std::make_shared<transaction::LeasedContext>(_vocbase, tid, allowCreateNew);
+  }
+  return transaction::StandaloneContext::Create(_vocbase);
 }

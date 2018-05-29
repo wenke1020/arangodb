@@ -47,7 +47,7 @@ class Hints {
     NO_USAGE_LOCK = 256, // not supported in RocksDB
     RECOVERY = 512,
     NO_DLD = 1024, // disable deadlock detection, unsupported in RocksDB
-    GLOBAL = 2048
+    EL_CHEAPO = 2048 // transaction with externally managed lifetime
   };
 
   Hints() : _value(0) {}
