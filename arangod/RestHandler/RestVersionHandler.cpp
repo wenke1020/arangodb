@@ -27,6 +27,8 @@
 #include "Rest/HttpRequest.h"
 #include "Rest/Version.h"
 #include "RestServer/ServerFeature.h"
+#include "Scheduler/Scheduler.h"
+#include "Scheduler/SchedulerFeature.h"
 
 #include <velocypack/Builder.h>
 #include <velocypack/velocypack-aliases.h>
@@ -80,6 +82,15 @@ RestStatus RestVersionHandler::execute() {
     result.close();
   }
   result.close();
-  generateResult(rest::ResponseCode::OK, result.slice());
-  return RestStatus::DONE;
+
+  auto s = arangodb::application_features::ApplicationServer::lookupFeature<arangodb::SchedulerFeature>("Scheduler")->SCHEDULER;
+  auto self = shared_from_this();
+  s->post([this, self, result]() {
+            LOG_DEVEL << "Hugo Honk wartet";
+            usleep(1000000);
+            LOG_DEVEL << "Hugo Honk hat gewartet";
+            generateResult(rest::ResponseCode::OK, result.slice());
+            continueHandlerExecution();
+          });
+  return RestStatus::WAITING;
 }

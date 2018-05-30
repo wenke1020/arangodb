@@ -413,7 +413,7 @@ void GeneralCommTask::handleRequestDirectly(
   handler->runHandler([this, doLock](rest::RestHandler* handler) {
     RequestStatistics* stat = handler->stealStatistics();
     // TODO we could reduce all of this to strand::dispatch ?
-    if (doLock) {
+    if (doLock || !_peer->strand.running_in_this_thread()) {
       auto self = shared_from_this();
       auto h = handler->shared_from_this();
       _loop.scheduler->_nrQueued++;
