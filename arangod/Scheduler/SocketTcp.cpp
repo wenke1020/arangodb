@@ -28,9 +28,9 @@ size_t SocketTcp::write(basics::StringBuffer* buffer,
                         boost::system::error_code& ec) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return socketcommon::doWrite(_sslSocket, buffer, ec);
+    return _sslSocket.write_some(boost::asio::buffer(buffer->begin(), buffer->length()), ec);
   } else {
-    return socketcommon::doWrite(_socket, buffer, ec);
+    return _socket.write_some(boost::asio::buffer(buffer->begin(), buffer->length()), ec);
   }
 }
 
@@ -38,29 +38,19 @@ void SocketTcp::asyncWrite(boost::asio::mutable_buffers_1 const& buffer,
                            AsyncHandler const& handler) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return socketcommon::doAsyncWrite(_sslSocket, buffer, handler);
+    return boost::asio::async_write(_sslSocket, buffer, _sslSocketStrand.wrap(handler));
   } else {
-    return socketcommon::doAsyncWrite(_socket, buffer, handler);
+    return boost::asio::async_write(_socket, buffer, handler);
   }
 }
-/*
-void SocketTcp::asyncWrite(std::vector<void const*> const& buffers,
-                           AsyncHandler const& handler) {
-  MUTEX_LOCKER(guard, _lock);
-  if (_encrypted) {
-    return socketcommon::doAsyncWrite(_sslSocket, buffers, handler);
-  } else {
-    return socketcommon::doAsyncWrite(_socket, buffers, handler);
-  }
-}*/
 
 size_t SocketTcp::read(boost::asio::mutable_buffers_1 const& buffer,
                        boost::system::error_code& ec) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return socketcommon::doRead(_sslSocket, buffer, ec);
+    return _sslSocket.read_some(buffer, ec);
   } else {
-    return socketcommon::doRead(_socket, buffer, ec);
+    return _socket.read_some(buffer, ec);
   }
 }
 
@@ -89,9 +79,9 @@ void SocketTcp::asyncRead(boost::asio::mutable_buffers_1 const& buffer,
                           AsyncHandler const& handler) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return socketcommon::doAsyncRead(_sslSocket, buffer, handler);
+    return _sslSocket.async_read_some(buffer, _sslSocketStrand.wrap(handler));
   } else {
-    return socketcommon::doAsyncRead(_socket, buffer, handler);
+    return _socket.async_read_some(buffer, handler);
   }
 }
 
