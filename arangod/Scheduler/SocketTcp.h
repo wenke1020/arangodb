@@ -35,7 +35,6 @@ class SocketTcp final : public Socket {
             boost::asio::ssl::context&& context, bool encrypted)
       : Socket(ioService, std::move(context), encrypted),
         _sslSocket(ioService, _context),
-        _sslSocketStrand(ioService),
         _socket(_sslSocket.next_layer()),
         _peerEndpoint() {}
 

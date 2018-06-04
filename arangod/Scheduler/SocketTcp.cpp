@@ -38,7 +38,7 @@ void SocketTcp::asyncWrite(boost::asio::mutable_buffers_1 const& buffer,
                            AsyncHandler const& handler) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return boost::asio::async_write(_sslSocket, buffer, _sslSocketStrand.wrap(handler));
+    return boost::asio::async_write(_sslSocket, buffer, handler);
   } else {
     return boost::asio::async_write(_socket, buffer, handler);
   }
@@ -79,7 +79,7 @@ void SocketTcp::asyncRead(boost::asio::mutable_buffers_1 const& buffer,
                           AsyncHandler const& handler) {
   MUTEX_LOCKER(guard, _lock);
   if (_encrypted) {
-    return _sslSocket.async_read_some(buffer, _sslSocketStrand.wrap(handler));
+    return _sslSocket.async_read_some(buffer, handler);
   } else {
     return _socket.async_read_some(buffer, handler);
   }

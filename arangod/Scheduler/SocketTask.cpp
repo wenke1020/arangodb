@@ -56,6 +56,7 @@ SocketTask::SocketTask(arangodb::EventLoop loop,
       _stringBuffers{_stringBuffersArena},
       _writeBuffer(nullptr, nullptr),
       _peer(std::move(socket)),
+      _peerStrand(_peer->_ioService),
       _keepAliveTimeout(static_cast<long>(keepAliveTimeout * 1000)),
       _keepAliveTimer(_peer->_ioService, _keepAliveTimeout),
       _useKeepAliveTimer(keepAliveTimeout > 0.0),
@@ -218,30 +219,31 @@ void SocketTask::writeWriteBuffer() {
   auto self = shared_from_this();
   _peer->asyncWrite(boost::asio::buffer(_writeBuffer._buffer->begin() + written,
                                         total - written),
-                    [self, this](const boost::system::error_code& ec,
-                                 std::size_t transferred) {
-                      MUTEX_LOCKER(locker, _lock);
+                    _peerStrand.wrap(
+                      [self, this](const boost::system::error_code& ec,
+                                   std::size_t transferred) {
+                        MUTEX_LOCKER(locker, _lock);
 
-                      if (_abandoned) {
-                        return;
-                      }
-
-                      RequestStatistics::ADD_SENT_BYTES(
-                          _writeBuffer._statistics, transferred);
-
-                      if (ec) {
-                        LOG_TOPIC(DEBUG, Logger::COMMUNICATION)
-                            << "write on stream failed with: " << ec.message();
-                        closeStreamNoLock();
-                      } else {
-                        if (completedWriteBuffer()) {
-                          _loop._scheduler->post([self, this]() {
-                            MUTEX_LOCKER(locker, _lock);
-                            writeWriteBuffer();
-                          });
+                        if (_abandoned) {
+                          return;
                         }
-                      }
-                    });
+
+                        RequestStatistics::ADD_SENT_BYTES(
+                            _writeBuffer._statistics, transferred);
+
+                        if (ec) {
+                          LOG_TOPIC(DEBUG, Logger::COMMUNICATION)
+                              << "write on stream failed with: " << ec.message();
+                          closeStreamNoLock();
+                        } else {
+                          if (completedWriteBuffer()) {
+                            _loop._scheduler->post([self, this]() {
+                              MUTEX_LOCKER(locker, _lock);
+                              writeWriteBuffer();
+                            });
+                          }
+                        }
+                      }));
 }
 
 
@@ -539,30 +541,31 @@ void SocketTask::asyncReadSome() {
 
     _peer->asyncRead(
         boost::asio::buffer(_readBuffer.end(), READ_BLOCK_SIZE),
-        [self, this](const boost::system::error_code& ec,
-                     std::size_t transferred) {
-          JobGuard guard(_loop);
-          guard.work();
+        _peerStrand.wrap(
+          [self, this](const boost::system::error_code& ec,
+                       std::size_t transferred) {
+            JobGuard guard(_loop);
+            guard.work();
 
-          MUTEX_LOCKER(locker, _lock);
+            MUTEX_LOCKER(locker, _lock);
 
-          if (_abandoned) {
-            return;
-          }
-
-          if (ec) {
-            LOG_TOPIC(DEBUG, Logger::COMMUNICATION)
-                << "read on stream failed with: " << ec.message();
-            closeStreamNoLock();
-          } else {
-            _readBuffer.increaseLength(transferred);
-
-            if (processAll()) {
-              _loop._scheduler->post([self, this]() { asyncReadSome(); });
+            if (_abandoned) {
+              return;
             }
 
-            compactify();
-          }
-        });
+            if (ec) {
+              LOG_TOPIC(DEBUG, Logger::COMMUNICATION)
+                  << "read on stream failed with: " << ec.message();
+              closeStreamNoLock();
+            } else {
+              _readBuffer.increaseLength(transferred);
+
+              if (processAll()) {
+                _loop._scheduler->post([self, this]() { asyncReadSome(); });
+              }
+
+              compactify();
+            }
+          }));
   }
 }
