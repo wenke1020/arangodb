@@ -182,6 +182,12 @@ class SocketTask : virtual public Task {
   std::list<WriteBuffer> _writeBuffers;
 
   std::unique_ptr<Socket> _peer;
+  // We need to make sure that all asynchronous operations called on this
+  // Socket object are serialized (in particular asyncRead and asyncWrite),
+  // if the communication is encrypted with TLS, because otherwise
+  // the SSL context could get confused if an encryption and a decryption
+  // happen concurrently. Therefore, we execute them in this strand:
+  boost::asio::strand _peerStrand;
   boost::posix_time::milliseconds _keepAliveTimeout;
   boost::asio::deadline_timer _keepAliveTimer;
   bool const _useKeepAliveTimer;

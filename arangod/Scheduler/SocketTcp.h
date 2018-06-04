@@ -86,12 +86,6 @@ class SocketTcp final : public Socket {
   Mutex _lock;
 
   boost::asio::ssl::stream<boost::asio::ip::tcp::socket> _sslSocket;
-  // We need to make sure that all asynchronous operations called on this
-  // Socket object are serialized (in particular asyncRead and asyncWrite),
-  // if the communication is encrypted with TLS, because otherwise
-  // the SSL context could get confused if an encryption and a decryption
-  // happen concurrently. Therefore, we execute them in this strand:
-  boost::asio::strand _sslSocketStrand;
   boost::asio::ip::tcp::socket& _socket;
 
   boost::asio::ip::tcp::acceptor::endpoint_type _peerEndpoint;
