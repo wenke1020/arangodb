@@ -205,17 +205,24 @@ namespace {
 RestStatus RestPerfHandler::execute() {
   bool found;
   std::string buf;
+
   int64_t number = 1000;
   buf = _request->value("number", found);
   if (found) {
     number = arangodb::basics::StringUtils::int64(buf);
   }
+
   double time = 0.001;  // 1 ms
   buf = _request->value("time", found);
   if (found) {
     time = arangodb::basics::StringUtils::doubleDecimal(buf);
   }
-  int64_t complexity = ::calibrate(time);
+
+  int64_t complexity = 1000000;
+  buf = _request->value("complexity", found);
+  if (found) {
+    complexity = arangodb::basics::StringUtils::int64(buf);
+  }
 
   int32_t type = 0;
   buf = _request->value("type", found);
@@ -268,6 +275,30 @@ RestStatus RestPerfHandler::execute() {
   std::vector<double> diffs;
   diffs.resize(times.size());
 
+  auto addStats = [](VPackBuilder& r, std::vector<double> diffs) {
+    std::sort(diffs.begin(), diffs.end());
+    { VPackObjectBuilder guard(&r);
+      r.add("p50", VPackValue(diffs[(diffs.size()*50)/100]));
+      r.add("p90", VPackValue(diffs[(diffs.size()*90)/100]));
+      r.add("p95", VPackValue(diffs[(diffs.size()*95)/100]));
+      r.add("p99", VPackValue(diffs[(diffs.size()*99)/100]));
+      if (diffs.size() >= 20) {
+        r.add(VPackValue("smallest10"));
+        { VPackArrayBuilder guard2(&r);
+          for (size_t i = 0; i < 10; ++i) {
+            r.add(VPackValue(diffs[i]));
+          }
+        }
+        r.add(VPackValue("largest10"));
+        { VPackArrayBuilder guard2(&r);
+          for (size_t i = 10; i > 0; --i) {
+            r.add(VPackValue(diffs[diffs.size() - i]));
+          }
+        }
+      }
+    }
+  };
+
   VPackBuilder r;
   { VPackObjectBuilder guard(&r);
     r.add("number", VPackValue(number));
@@ -282,38 +313,20 @@ RestStatus RestPerfHandler::execute() {
     for (size_t i = 0; i < times.size(); ++i) {
       diffs[i] = timeDiff(times[i].start, times[i].end);
     }
-    std::sort(diffs.begin(), diffs.end());
     r.add(VPackValue("taskTimes"));
-    { VPackObjectBuilder guard2(&r);
-      r.add("p50", VPackValue(diffs[(diffs.size()*50)/100]));
-      r.add("p90", VPackValue(diffs[(diffs.size()*90)/100]));
-      r.add("p95", VPackValue(diffs[(diffs.size()*95)/100]));
-      r.add("p99", VPackValue(diffs[(diffs.size()*99)/100]));
-    }
+    addStats(r, diffs);
 
     for (size_t i = 0; i < times.size(); ++i) {
       diffs[i] = timeDiff(times[i].post, times[i].start);
     }
-    std::sort(diffs.begin(), diffs.end());
     r.add(VPackValue("waitTimes"));
-    { VPackObjectBuilder guard2(&r);
-      r.add("p50", VPackValue(diffs[(diffs.size()*50)/100]));
-      r.add("p90", VPackValue(diffs[(diffs.size()*90)/100]));
-      r.add("p95", VPackValue(diffs[(diffs.size()*95)/100]));
-      r.add("p99", VPackValue(diffs[(diffs.size()*99)/100]));
-    }
+    addStats(r, diffs);
 
     for (size_t i = 0; i < times.size(); ++i) {
       diffs[i] = timeDiff(times[i].post, times[i].end);
     }
-    std::sort(diffs.begin(), diffs.end());
     r.add(VPackValue("totalTimes"));
-    { VPackObjectBuilder guard2(&r);
-      r.add("p50", VPackValue(diffs[(diffs.size()*50)/100]));
-      r.add("p90", VPackValue(diffs[(diffs.size()*90)/100]));
-      r.add("p95", VPackValue(diffs[(diffs.size()*95)/100]));
-      r.add("p99", VPackValue(diffs[(diffs.size()*99)/100]));
-    }
+    addStats(r, diffs);
   }
   generateResult(rest::ResponseCode::OK, r.slice());
   return RestStatus::DONE;
