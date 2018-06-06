@@ -63,6 +63,7 @@
 #include "RestHandler/RestImportHandler.h"
 #include "RestHandler/RestIndexHandler.h"
 #include "RestHandler/RestJobHandler.h"
+#include "RestHandler/RestPerfHandler.h"
 #include "RestHandler/RestPleaseUpgradeHandler.h"
 #include "RestHandler/RestPregelHandler.h"
 #include "RestHandler/RestQueryCacheHandler.h"
@@ -453,6 +454,9 @@ void GeneralServerFeature::defineHandlers() {
 
   _handlerFactory->addHandler(
       "/_api/version", RestHandlerCreator<RestVersionHandler>::createNoData);
+  
+  _handlerFactory->addHandler(
+      "/_api/perf", RestHandlerCreator<RestPerfHandler>::createNoData);
   
   _handlerFactory->addHandler(
     "/_api/transaction", RestHandlerCreator<RestTransactionHandler>::createNoData);
