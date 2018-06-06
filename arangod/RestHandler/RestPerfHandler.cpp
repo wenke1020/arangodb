@@ -185,6 +185,21 @@ namespace {
                        });
     return std::make_pair(accumulator.load(), timeDiff(start, end));
   }
+
+  std::pair<int64_t, double> dowork2(int64_t number, double time,
+                                     std::vector<Times>& times) {
+    // Calibration:
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int64_t i = 0; i < number; ++i) {
+      times[i].post = std::chrono::high_resolution_clock::now();
+      times[i].start = std::chrono::high_resolution_clock::now();
+      int64_t complexity = ::calibrate(time);
+      times[i].end = std::chrono::high_resolution_clock::now();
+      LOG_TOPIC(INFO, Logger::FIXME) << "Calibration result: " << complexity;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    return std::make_pair(12, timeDiff(start, end));
+  }
 }
 
 RestStatus RestPerfHandler::execute() {
@@ -233,6 +248,13 @@ RestStatus RestPerfHandler::execute() {
       result = rr.first;
       schedTime = rr.second;
       typeSt = "Schedule constant number in flight";
+      break;
+    }
+    case 2: {
+      auto rr = ::dowork2(number, time, times);
+      result = rr.first;
+      schedTime = rr.second;
+      typeSt = "Calibration";
       break;
     }
     default: {
