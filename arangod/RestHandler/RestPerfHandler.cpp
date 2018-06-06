@@ -76,7 +76,6 @@ namespace {
 
     LOG_TOPIC(INFO, Logger::FIXME) << "Calibrating for time " << seconds;
     int64_t n = 500;
-    double tprev = 0.0;
     double t = 0.0;
     int64_t i = 1;
     // First start with counting to n and double until it took longer
@@ -86,22 +85,31 @@ namespace {
       auto startTime = std::chrono::high_resolution_clock::now();
       avoidOptimization += runner(n, ++i);
       auto endTime = std::chrono::high_resolution_clock::now();
-      tprev = t;
       t = timeDiff(startTime, endTime);
     }
     // Now search for the right value:
-    int64_t nn = n/100;
-    while (t > seconds && n > nn) {
-      n -= nn;
+    int64_t sum = 0;
+    for (int j = 0; j < 20; ++j) {
+      n = static_cast<int64_t>(n * (seconds / t));
       auto startTime = std::chrono::high_resolution_clock::now();
       avoidOptimization += runner(n, ++i);
       auto endTime = std::chrono::high_resolution_clock::now();
-      tprev = t;
       t = timeDiff(startTime, endTime);
+      sum += n;
     }
-    n += nn;
+    n = sum/20;
+    double sumd = 0;
+    for (int j = 0; j < 20; ++j) {
+      auto startTime = std::chrono::high_resolution_clock::now();
+      avoidOptimization += runner(n, ++i);
+      auto endTime = std::chrono::high_resolution_clock::now();
+      t = timeDiff(startTime, endTime);
+      LOG_TOPIC(INFO, Logger::FIXME) << "Cal: n=" << n << " t=" << t;
+      sumd += t;
+    }
+    
     LOG_TOPIC(INFO, Logger::FIXME) << "Calibration result: n=" << n
-      << ", t=" << tprev;
+      << ", t(avg)=" << sumd/20;
     return n;
   }
 
