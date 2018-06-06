@@ -197,15 +197,17 @@ namespace {
   std::pair<int64_t, double> dowork2(int64_t number, double time,
                                      std::vector<Times>& times) {
     // Calibration:
+    int64_t sum = 0;
     auto start = std::chrono::high_resolution_clock::now();
     for (int64_t i = 0; i < number; ++i) {
       times[i].post = std::chrono::high_resolution_clock::now();
       times[i].start = std::chrono::high_resolution_clock::now();
       int64_t complexity = ::calibrate(time);
       times[i].end = std::chrono::high_resolution_clock::now();
+      sum += complexity;
     }
     auto end = std::chrono::high_resolution_clock::now();
-    return std::make_pair(12, timeDiff(start, end));
+    return std::make_pair(sum / number, timeDiff(start, end));
   }
 }
 
