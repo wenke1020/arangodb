@@ -203,7 +203,6 @@ namespace {
       times[i].start = std::chrono::high_resolution_clock::now();
       int64_t complexity = ::calibrate(time);
       times[i].end = std::chrono::high_resolution_clock::now();
-      LOG_TOPIC(INFO, Logger::FIXME) << "Calibration result: " << complexity;
     }
     auto end = std::chrono::high_resolution_clock::now();
     return std::make_pair(12, timeDiff(start, end));
