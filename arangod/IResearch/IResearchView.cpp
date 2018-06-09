@@ -1368,10 +1368,9 @@ int IResearchView::insert(
 
     auto storeItr = irs::map_utils::try_emplace(_storeByTid, trx.state()->id());
 
-#warning FIX
-    /*if (storeItr.second) {
+    if (storeItr.second) {
       trx.state()->addStatusChangeCallback(_trxWriteCallback);
-    }*/
+    }
 
     store = &(storeItr.first->second._store);
   }
@@ -1615,10 +1614,9 @@ int IResearchView::remove(
 
     auto storeItr = irs::map_utils::try_emplace(_storeByTid, trx.state()->id());
 
-#warning FIX
-    /*if (storeItr.second) {
+    if (storeItr.second) {
       trx.state()->addStatusChangeCallback(_trxWriteCallback);
-    }*/
+    }
 
     store = &(storeItr.first->second);
   }
@@ -1924,8 +1922,8 @@ void IResearchView::verifyKnownCollections() {
   {
     static const arangodb::transaction::Options defaults;
     struct State final: public arangodb::TransactionState {
-      State(arangodb::CollectionNameResolver const& resolver)
-        : arangodb::TransactionState(resolver, 0, defaults) {}
+      State(TRI_vocbase_t& vocbase)
+        : arangodb::TransactionState(vocbase, 0, defaults) {}
       virtual arangodb::Result abortTransaction(
           arangodb::transaction::Methods*
       ) override { return TRI_ERROR_NOT_IMPLEMENTED; }
@@ -1938,8 +1936,7 @@ void IResearchView::verifyKnownCollections() {
       virtual bool hasFailedOperations() const override { return false; }
     };
 
-    arangodb::CollectionNameResolver resolver(vocbase());
-    State state(resolver);
+    State state(vocbase());
 
     if (!appendKnownCollections(cids, *snapshot(state, true))) {
       LOG_TOPIC(ERR, arangodb::iresearch::TOPIC)
