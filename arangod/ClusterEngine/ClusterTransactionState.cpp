@@ -124,7 +124,6 @@ Result ClusterTransactionState::abortTransaction(
   TRI_ASSERT(_status == transaction::Status::RUNNING);
   Result result;
   if (_nestingLevel == 0) {
-    
     updateStatus(transaction::Status::ABORTED);
     /*if (hasOperations()) {
       // must clean up the query cache because the transaction

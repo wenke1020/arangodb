@@ -49,7 +49,7 @@ class V8Context final : public Context {
   orderCustomTypeHandler() override final;
 
   /// @brief get parent transaction (if any) and increase nesting
-  TransactionState* leaseParentTransaction() const override;
+  TransactionState* leaseParentTransaction() override;
 
   /// @brief register the transaction in the context
   void registerTransaction(TransactionState* trx) override;

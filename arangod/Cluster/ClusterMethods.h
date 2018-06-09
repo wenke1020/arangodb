@@ -87,7 +87,7 @@ int figuresOnCoordinator(std::string const& dbname, std::string const& collname,
 /// @brief counts number of documents in a coordinator, by shard
 ////////////////////////////////////////////////////////////////////////////////
 
-int countOnCoordinator(arangodb::TransactionState*, std::string const& collname,
+int countOnCoordinator(arangodb::TransactionState&, std::string const& collname,
                        std::vector<std::pair<std::string, uint64_t>>& result,
                        bool sendNoLockHeader);
   
@@ -103,7 +103,7 @@ int selectivityEstimatesOnCoordinator(std::string const& dbname, std::string con
 ////////////////////////////////////////////////////////////////////////////////
 
 Result createDocumentOnCoordinator(
-    arangodb::TransactionState*, std::string const& collname,
+    arangodb::TransactionState&, std::string const& collname,
     OperationOptions const& options, arangodb::velocypack::Slice const& slice,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounters,
@@ -114,7 +114,7 @@ Result createDocumentOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int deleteDocumentOnCoordinator(
-    arangodb::TransactionState*, std::string const& collname,
+    arangodb::TransactionState&, std::string const& collname,
     VPackSlice const slice, OperationOptions const& options,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounters,
@@ -125,7 +125,7 @@ int deleteDocumentOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int getDocumentOnCoordinator(
-    arangodb::TransactionState*, std::string const& collname,
+    arangodb::TransactionState&, std::string const& collname,
     VPackSlice const slice, OperationOptions const& options,
     std::unique_ptr<std::unordered_map<std::string, std::string>> headers,
     arangodb::rest::ResponseCode& responseCode,
@@ -226,7 +226,7 @@ int getFilteredEdgesOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int modifyDocumentOnCoordinator(
-    arangodb::TransactionState*, std::string const& collname,
+    arangodb::TransactionState&, std::string const& collname,
     arangodb::velocypack::Slice const& slice, OperationOptions const& options,
     bool isPatch,
     std::unique_ptr<std::unordered_map<std::string, std::string>>& headers,
@@ -274,23 +274,23 @@ class ClusterMethods {
       bool enforceReplicationFactor
     );
   
-  /// @brief lazy begin a transaction on leaders
-  static arangodb::Result beginTransaction(arangodb::TransactionState* state,
-                                           std::shared_ptr<LogicalCollection> const&,
-                                           std::string const& shard);
+  /// @brief begin a transaction on all followers
+  static arangodb::Result beginTransactionOnLeaders(arangodb::TransactionState& state,
+                                                    std::vector<ServerID> const& leaders);
   
-  /// @brief lazy begin a transaction on leader or followers
-  static arangodb::Result beginTransactionSubordinate(arangodb::TransactionState* state,
-                                                      ServerID const& server);
-  
-  /// @brief commit a transaction on a subordinate
-  static arangodb::Result commitTransaction(arangodb::TransactionState* state);
+  /// @brief begin a transaction on all followers
+  static arangodb::Result beginTransactionOnFollowers(arangodb::TransactionState& state,
+                                                      arangodb::FollowerInfo& info,
+                                                      std::vector<ServerID> const& followers);
   
   /// @brief commit a transaction on a subordinate
-  static arangodb::Result abortTransaction(arangodb::TransactionState* state);
+  static arangodb::Result commitTransaction(arangodb::TransactionState& state);
+  
+  /// @brief commit a transaction on a subordinate
+  static arangodb::Result abortTransaction(arangodb::TransactionState& state);
   
   /// @brief set the transaction ID header
-  static void transactionHeader(arangodb::TransactionState* state,
+  static void transactionHeader(arangodb::TransactionState& state,
                                 std::unordered_map<std::string, std::string>& headers);
 
  private:

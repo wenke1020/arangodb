@@ -31,6 +31,7 @@
 #include "Basics/VelocyPackHelper.h"
 #include "Cluster/ClusterComm.h"
 #include "Cluster/ClusterInfo.h"
+#include "Cluster/FollowerInfo.h"
 #include "Graph/Traverser.h"
 #include "Indexes/Index.h"
 #include "StorageEngine/TransactionCollection.h"
@@ -51,6 +52,7 @@
 #include <numeric>
 #include <vector>
 
+using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
 
@@ -128,11 +130,8 @@ void recursiveAdd(VPackSlice const& value, std::shared_ptr<VPackBuilder>& builde
   TRI_ASSERT(builder->slice().isObject());
   TRI_ASSERT(builder->isClosed());
 }
-}
-
-namespace arangodb {
-
-static int handleGeneralCommErrors(ClusterCommResult const* res) {
+  
+static int handleGeneralCommErrors(arangodb::ClusterCommResult const* res) {
   // This function creates an error code from a ClusterCommResult,
   // but only if it is a communication error. If the communication
   // was successful and there was an HTTP error code, this function
@@ -154,9 +153,128 @@ static int handleGeneralCommErrors(ClusterCommResult const* res) {
     }
     return TRI_ERROR_CLUSTER_BACKEND_UNAVAILABLE;
   }
-
+  
   return TRI_ERROR_NO_ERROR;
 }
+  
+/// @brief lazy begin a transaction on subordinate servers
+ClusterCommRequest beginTransactionRequest(TransactionState& state,
+                                           ServerID const& server) {
+  //std::vector<ServerID> DBservers = ci->getCurrentDBServers();
+  VPackBuilder builder;
+  builder.openObject();
+  state.options().toVelocyPack(builder);
+  builder.add("collections", VPackValue(VPackValueType::Object));
+  auto addCollections = [&](std::string const& key, AccessMode::Type t) {
+    builder.add(key, VPackValue(VPackValueType::Array));
+    state.allCollections([&](TransactionCollection* col) {
+      if (col->accessType() == t) {
+        if (state.isCoordinator()) {
+          std::shared_ptr<ShardMap> shardMap = col->collection()->shardIds();
+          // coordinator starts transaction on shard leader
+          for (auto const& pair : *shardMap) {
+            TRI_ASSERT(!pair.second.empty());
+            // only add shard where server is leader
+            if (!pair.second.empty() && pair.second[0] == server) {
+              builder.add(VPackValue(pair.first));
+            }
+          }
+        } else {
+          if (col->collection()->followers()->contains(server)) {
+            builder.add(VPackValue(col->collectionName()));
+          }
+        }
+      }
+      return true;
+    });
+    builder.close();
+  };
+  addCollections("read", AccessMode::Type::READ);
+  addCollections("write", AccessMode::Type::WRITE);
+  addCollections("exclusive", AccessMode::Type::EXCLUSIVE);
+  
+  builder.close(); // </collections>
+  builder.close(); // </openObject>
+  
+  std::string url = "/_api/transaction/begin";
+  std::unique_ptr<std::unordered_map<std::string, std::string>> headers;
+  headers->emplace(arangodb::StaticStrings::TransactionId, std::to_string(state.id() + 1));
+  auto body = std::make_shared<std::string>(builder.toJson());
+  return ClusterCommRequest("server:" + server, RequestType::POST, url, body, std::move(headers));
+}
+  
+Result checkTransactionBeginResults(TransactionState const& state,
+                                    std::vector<ClusterCommRequest> const& requests) {
+  for (auto& req : requests) {
+    ClusterCommResult const& res = req.result;
+    
+    int commError = handleGeneralCommErrors(&res);
+    if (commError != TRI_ERROR_NO_ERROR) {
+      // oh-oh cluster is in a bad state
+      return commError;
+    }
+    
+    if (res.status == CL_COMM_RECEIVED &&
+        res.answer_code == rest::ResponseCode::CREATED) {
+      if (res.answer->payload().isObject()) {
+        VPackSlice idSlice = res.answer->payload().get(std::vector<std::string>{"result", "id"});
+        if (!idSlice.isString() || StringUtils::uint64(idSlice.copyString()) != state.id() + 1) {
+          LOG_TOPIC(DEBUG, Logger::TRANSACTIONS) << " failed to begin transaction on " << res.endpoint;
+          return TRI_ERROR_TRANSACTION_INTERNAL; // success
+        }
+      }
+    }
+  }
+  
+  return TRI_ERROR_NO_ERROR;
+}
+
+/// @brief begin a transaction on shard leader
+template <typename ShardDocsMap>
+Result beginTransactionCoordinator(TransactionState& state,
+                                   std::shared_ptr<LogicalCollection> const& coll,
+                                   ShardDocsMap const& shards) {
+  TRI_ASSERT(state.isCoordinator());
+  TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
+  
+  std::shared_ptr<ShardMap> shardMap = coll->shardIds();
+  std::vector<ClusterCommRequest> requests;
+  
+  for (auto const& pair : shards) {
+    auto const& it = shardMap->find(pair.first);
+    TRI_ASSERT(!it->second.empty());
+    
+    //TRI_ASSERT(state->id() % 4 == 0);
+    if (it->second.empty()) {
+      return TRI_ERROR_CLUSTER_INSUFFICIENT_DBSERVERS; // something is broken
+    }
+    // now we got the shard leader
+    std::string const& leader = it->second[0];
+    if (state.knowsServer(leader)) {
+      continue;
+    }
+    state.addServer(leader);
+    requests.emplace_back(beginTransactionRequest(state, leader));
+  }
+  
+  if (requests.empty()) {
+    return TRI_ERROR_NO_ERROR;
+  }
+  
+  auto cc = ClusterComm::instance();
+  if (cc == nullptr) {
+    // nullptr happens only during controlled shutdown
+    return TRI_ERROR_SHUTTING_DOWN;
+  }
+  
+  // Perform the requests
+  size_t nrDone = 0;
+  cc->performRequests(requests, CL_DEFAULT_TIMEOUT, nrDone, Logger::COMMUNICATION, false);
+  return ::checkTransactionBeginResults(state, requests);
+}
+}
+
+namespace arangodb {
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief extracts a numeric value from an hierarchical VelocyPack
@@ -885,10 +1003,9 @@ int figuresOnCoordinator(std::string const& dbname, std::string const& collname,
 /// @brief counts number of documents in a coordinator, by shard
 ////////////////////////////////////////////////////////////////////////////////
 
-int countOnCoordinator(TransactionState* state, std::string const& collname,
+int countOnCoordinator(arangodb::TransactionState& state, std::string const& cname,
                        std::vector<std::pair<std::string, uint64_t>>& result,
                        bool sendNoLockHeader) {
-  TRI_ASSERT(state != nullptr);
   // Set a few variables needed for our work:
   ClusterInfo* ci = ClusterInfo::instance();
   auto cc = ClusterComm::instance();
@@ -899,11 +1016,11 @@ int countOnCoordinator(TransactionState* state, std::string const& collname,
 
   result.clear();
 
-  std::string const& dbname = state->vocbase().name();
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo;
   try {
-    collinfo = ci->getCollection(dbname, collname);
+    collinfo = ci->getCollection(dbname, cname);
   } catch (...) {
     return TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND;
   }
@@ -1086,7 +1203,7 @@ int selectivityEstimatesOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 Result createDocumentOnCoordinator(
-    TransactionState* state, std::string const& collname,
+    arangodb::TransactionState& state, std::string const& collname,
     arangodb::OperationOptions const& options, VPackSlice const& slice,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounter,
@@ -1101,7 +1218,7 @@ Result createDocumentOnCoordinator(
   ClusterInfo* ci = ClusterInfo::instance();
   TRI_ASSERT(ci != nullptr);
 
-  std::string const& dbname = state->vocbase().name();
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo;
   try {
@@ -1143,9 +1260,10 @@ Result createDocumentOnCoordinator(
   }
   
   // lazily begin transactions on followers
-  if (state->hasHint(transaction::Hints::Hint::EL_CHEAPO)) {
-    for (auto const& it : shardMap) {
-      ClusterMethods::beginTransaction(state, collinfo, it.first);
+  if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+    Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
+    if (res.fail()) {
+      return res;
     }
   }
 
@@ -1213,7 +1331,7 @@ Result createDocumentOnCoordinator(
     auto const& req = requests[0];
     auto& res = req.result;
 
-    int commError = handleGeneralCommErrors(&res);
+    int commError = ::handleGeneralCommErrors(&res);
     if (commError != TRI_ERROR_NO_ERROR) {
       return commError;
     }
@@ -1245,7 +1363,7 @@ Result createDocumentOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int deleteDocumentOnCoordinator(
-    TransactionState* state, std::string const& collname,
+    arangodb::TransactionState& state, std::string const& collname,
     VPackSlice const slice, arangodb::OperationOptions const& options,
     arangodb::rest::ResponseCode& responseCode,
     std::unordered_map<int, size_t>& errorCounter,
@@ -1259,7 +1377,7 @@ int deleteDocumentOnCoordinator(
     return TRI_ERROR_SHUTTING_DOWN;
   }
 
-  std::string const& dbname = state->vocbase().name();
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo;
   try {
@@ -1381,7 +1499,7 @@ int deleteDocumentOnCoordinator(
       auto const& req = requests[0];
       auto& res = req.result;
 
-      int commError = handleGeneralCommErrors(&res);
+      int commError = ::handleGeneralCommErrors(&res);
       if (commError != TRI_ERROR_NO_ERROR) {
         return commError;
       }
@@ -1461,7 +1579,7 @@ int deleteDocumentOnCoordinator(
   responseCode = rest::ResponseCode::SERVER_ERROR;
   for (auto const& req : requests) {
     auto res = req.result;
-    int error = handleGeneralCommErrors(&res);
+    int error = ::handleGeneralCommErrors(&res);
     if (error != TRI_ERROR_NO_ERROR) {
       // Local data structures are automatically freed
       return error;
@@ -1601,7 +1719,7 @@ int rotateActiveJournalOnAllDBServers(std::string const& dbname,
 ////////////////////////////////////////////////////////////////////////////////
 
 int getDocumentOnCoordinator(
-    TransactionState* state, std::string const& collname,
+    arangodb::TransactionState& state, std::string const& collname,
     VPackSlice const slice, OperationOptions const& options,
     std::unique_ptr<std::unordered_map<std::string, std::string>> headers,
     arangodb::rest::ResponseCode& responseCode,
@@ -1615,7 +1733,7 @@ int getDocumentOnCoordinator(
     return TRI_ERROR_SHUTTING_DOWN;
   }
 
-  std::string const& dbname = state->vocbase().name();
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo;
   try {
@@ -1662,9 +1780,10 @@ int getDocumentOnCoordinator(
   }
 
   // lazily begin transactions on followers
-  if (state->hasHint(transaction::Hints::Hint::EL_CHEAPO)) {
-    for (auto const& it : shardMap) {
-      ClusterMethods::beginTransaction(state, collinfo, it.first);
+  if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+    Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
+    if (res.fail()) {
+      return res.errorNumber();
     }
   }
   
@@ -1746,7 +1865,7 @@ int getDocumentOnCoordinator(
       auto const& req = requests[0];
       auto res = req.result;
 
-      int commError = handleGeneralCommErrors(&res);
+      int commError = ::handleGeneralCommErrors(&res);
       if (commError != TRI_ERROR_NO_ERROR) {
         return commError;
       }
@@ -1830,7 +1949,7 @@ int getDocumentOnCoordinator(
           resultBody.swap(parsedResult);
         }
       } else {
-        commError = handleGeneralCommErrors(&res);
+        commError = ::handleGeneralCommErrors(&res);
       }
     }
     if (nrok == 0) {
@@ -1851,7 +1970,7 @@ int getDocumentOnCoordinator(
   responseCode = rest::ResponseCode::SERVER_ERROR;
   for (auto const& req : requests) {
     auto& res = req.result;
-    int error = handleGeneralCommErrors(&res);
+    int error = ::handleGeneralCommErrors(&res);
     if (error != TRI_ERROR_NO_ERROR) {
       // Local data structores are automatically freed
       return error;
@@ -1929,7 +2048,7 @@ int fetchEdgesFromEngines(
   for (auto const& req : requests) {
     bool allCached = true;
     auto res = req.result;
-    int commError = handleGeneralCommErrors(&res);
+    int commError = ::handleGeneralCommErrors(&res);
     if (commError != TRI_ERROR_NO_ERROR) {
       // oh-oh cluster is in a bad state
       return commError;
@@ -2024,7 +2143,7 @@ void fetchVerticesFromEngines(
   // Now listen to the results:
   for (auto const& req : requests) {
     auto res = req.result;
-    int commError = handleGeneralCommErrors(&res);
+    int commError = ::handleGeneralCommErrors(&res);
     if (commError != TRI_ERROR_NO_ERROR) {
       // oh-oh cluster is in a bad state
       THROW_ARANGO_EXCEPTION(commError);
@@ -2129,7 +2248,7 @@ void fetchVerticesFromEngines(
   // Now listen to the results:
   for (auto const& req : requests) {
     auto res = req.result;
-    int commError = handleGeneralCommErrors(&res);
+    int commError = ::handleGeneralCommErrors(&res);
     if (commError != TRI_ERROR_NO_ERROR) {
       // oh-oh cluster is in a bad state
       THROW_ARANGO_EXCEPTION(commError);
@@ -2236,7 +2355,7 @@ int getFilteredEdgesOnCoordinator(
   // All requests send, now collect results.
   for (auto const& req : requests) {
     auto& res = req.result;
-    int error = handleGeneralCommErrors(&res);
+    int error = ::handleGeneralCommErrors(&res);
     if (error != TRI_ERROR_NO_ERROR) {
       // Cluster is in bad state. Report.
       return error;
@@ -2297,7 +2416,7 @@ int getFilteredEdgesOnCoordinator(
 ////////////////////////////////////////////////////////////////////////////////
 
 int modifyDocumentOnCoordinator(
-    arangodb::TransactionState* state, std::string const& collname,
+    arangodb::TransactionState& state, std::string const& collname,
     VPackSlice const& slice, arangodb::OperationOptions const& options,
     bool isPatch,
     std::unique_ptr<std::unordered_map<std::string, std::string>>& headers,
@@ -2312,7 +2431,7 @@ int modifyDocumentOnCoordinator(
     return TRI_ERROR_SHUTTING_DOWN;
   }
 
-  std::string const& dbname = state->vocbase().name();
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo =
       ci->getCollection(dbname, collname);
@@ -2375,9 +2494,10 @@ int modifyDocumentOnCoordinator(
   }
   
   // lazily begin transactions on followers
-  if (state->hasHint(transaction::Hints::Hint::EL_CHEAPO)) {
-    for (auto const& it : shardMap) {
-      ClusterMethods::beginTransaction(state, collinfo, it.first);
+  if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+    Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
+    if (res.fail()) {
+      return res.errorNumber();
     }
   }
 
@@ -2461,7 +2581,7 @@ int modifyDocumentOnCoordinator(
       TRI_ASSERT(requests.size() == 1);
       auto res = requests[0].result;
 
-      int commError = handleGeneralCommErrors(&res);
+      int commError = ::handleGeneralCommErrors(&res);
       if (commError != TRI_ERROR_NO_ERROR) {
         return commError;
       }
@@ -2533,7 +2653,7 @@ int modifyDocumentOnCoordinator(
           resultBody.swap(parsedResult);
         }
       } else {
-        commError = handleGeneralCommErrors(&res);
+        commError = ::handleGeneralCommErrors(&res);
       }
     }
     if (nrok == 0) {
@@ -2553,7 +2673,7 @@ int modifyDocumentOnCoordinator(
   allResults.reserve(requests.size());
   for (auto const& req : requests) {
     auto res = req.result;
-    int error = handleGeneralCommErrors(&res);
+    int error = ::handleGeneralCommErrors(&res);
     if (error != TRI_ERROR_NO_ERROR) {
       // Cluster is in bad state. Just report.
       // Local data structores are automatically freed
@@ -2656,104 +2776,99 @@ std::shared_ptr<LogicalCollection> ClusterMethods::createCollectionOnCoordinator
 }
 #endif
   
-/// @brief lazy begin a transaction on leaders
-Result ClusterMethods::beginTransaction(arangodb::TransactionState* state,
-                                        std::shared_ptr<LogicalCollection> const& coll,
-                                        std::string const& shard) {
-  TRI_ASSERT(state != nullptr);
-  TRI_ASSERT(state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
+/// @brief begin a transaction on all followers
+arangodb::Result ClusterMethods::beginTransactionOnLeaders(arangodb::TransactionState& state,
+                                                           std::vector<ServerID> const& leaders) {
+  TRI_ASSERT(state.isCoordinator());
+  TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
   
-  std::shared_ptr<ShardMap> shardMap = coll->shardIds();
-  auto const& it = shardMap->find(shard);
-  TRI_ASSERT(!it->second.empty());
-  
-  //TRI_ASSERT(state->id() % 4 == 0);
-  if (it->second.empty()) {
-    return TRI_ERROR_CLUSTER_INSUFFICIENT_DBSERVERS; // something is broken
+  std::vector<ClusterCommRequest> requests;
+  for (ServerID const& leader : leaders) {
+    if (state.knowsServer(leader)) {
+      continue; // already send a begin transaction there
+    }
+    state.addServer(leader);
+    requests.emplace_back(beginTransactionRequest(state, leader));
   }
-  return ClusterMethods::beginTransactionSubordinate(state, it->second[0]);
-}
   
-/// @brief lazy begin a transaction on subordinate servers
-arangodb::Result ClusterMethods::beginTransactionSubordinate(arangodb::TransactionState* state,
-                                                             ServerID const& server) {
-  TRI_ASSERT(state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
-  
-  // avoid having to ask the clusterinfo
-  if (state->knowsServer(server)) {
-    return TRI_ERROR_NO_ERROR; // already send a begin transaction there
+  if (requests.empty()) {
+    return TRI_ERROR_NO_ERROR;
   }
-  state->addServer(server);
   
   auto cc = ClusterComm::instance();
   if (cc == nullptr) {
     // nullptr happens only during controlled shutdown
     return TRI_ERROR_SHUTTING_DOWN;
   }
-  //std::vector<ServerID> DBservers = ci->getCurrentDBServers();
-  
-  VPackBuilder builder;
-  builder.openObject();
-  state->options().toVelocyPack(builder);
-  builder.add("collections", VPackValue(VPackValueType::Object));
-  auto addCollections = [&](std::string const& key, AccessMode::Type t) {
-    builder.add(key, VPackValue(VPackValueType::Array));
-    state->allCollections([&](TransactionCollection* col) {
-      if (col->accessType() == t) {
-        std::shared_ptr<ShardMap> shardMap = col->collection()->shardIds();
-        for (auto const& pair : *shardMap) {
-          TRI_ASSERT(!pair.second.empty());
-          if (!pair.second.empty() && pair.second[0] == server) {
-            builder.add(VPackValue(pair.first));
-          }
-        }
-      }
-      return true;
-    });
-    builder.close();
-  };
-  addCollections("read", AccessMode::Type::READ);
-  addCollections("write", AccessMode::Type::WRITE);
-  addCollections("exclusive", AccessMode::Type::EXCLUSIVE);
-  
-  builder.close(); // collections
-  builder.close(); // outer
-  
-  std::string url = "/_api/transaction/begin";
-  std::unique_ptr<std::unordered_map<std::string, std::string>> headers;
-  headers->emplace(StaticStrings::TransactionId, std::to_string(state->id() + 1));
-  auto body = std::make_shared<std::string>(builder.toJson());
-  std::vector<ClusterCommRequest> requests;
-  requests.emplace_back("server:" + server, RequestType::POST, url, body, std::move(headers));
   
   // Perform the requests
   size_t nrDone = 0;
   cc->performRequests(requests, CL_DEFAULT_TIMEOUT, nrDone, Logger::COMMUNICATION, false);
+  return ::checkTransactionBeginResults(state, requests);
+}
   
-  ClusterCommResult const& result = requests[0].result;
-  int commError = handleGeneralCommErrors(&result);
-  if (commError != TRI_ERROR_NO_ERROR) {
-    // oh-oh cluster is in a bad state
-    return commError;
+/// @brief begin a transaction on all followers
+Result ClusterMethods::beginTransactionOnFollowers(arangodb::TransactionState& state,
+                                                   arangodb::FollowerInfo& info,
+                                                   std::vector<ServerID> const& followers) {
+  TRI_ASSERT(state.isDBServer());
+  TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
+  
+  // prepare the requests:
+  std::vector<ClusterCommRequest> requests;
+  for (ServerID const& follower : followers) {
+    if (state.knowsServer(follower)) {
+      continue; // already send a begin transaction there
+    }
+    state.addServer(follower);
+    requests.emplace_back(beginTransactionRequest(state, follower));
   }
   
-  if (result.status == CL_COMM_RECEIVED &&
-      result.answer_code == arangodb::rest::ResponseCode::CREATED) {
-    if (result.answer->payload().isObject()) {
-      VPackSlice idSlice = result.answer->payload().get(std::vector<std::string>{"result", "id"});
-      if (idSlice.isString() && basics::StringUtils::uint64(idSlice.copyString()) == state->id() + 1) {
-        return TRI_ERROR_NO_ERROR; // success
+  if (requests.empty()) {
+    return TRI_ERROR_NO_ERROR;
+  }
+  
+  auto cc = ClusterComm::instance();
+  if (cc == nullptr) {
+    // nullptr happens only during controlled shutdown
+    return TRI_ERROR_SHUTTING_DOWN;
+  }
+  
+  // Perform the requests
+  size_t nrDone = 0;
+  size_t nrGood = cc->performRequests(requests, CL_DEFAULT_TIMEOUT, nrDone, Logger::COMMUNICATION, false);
+  
+  if (nrGood < followers.size()) {
+    // Otherwise we drop all followers that were not successful:
+    for (size_t i = 0; i < followers.size(); ++i) {
+      
+      if (!requests[i].done) {
+        info.remove(followers[i]);
+        continue;
       }
+      
+      ClusterCommResult const& res = requests[i].result;
+      if (handleGeneralCommErrors(&res) != TRI_ERROR_NO_ERROR ||
+          res.answer_code != rest::ResponseCode::CREATED) {
+        info.remove(followers[i]);
+        continue;
+      }
+      
+#ifdef ARANGODB_ENABLE_MAINTAINER_MODE
+      TRI_ASSERT(res.answer->payload().isObject());
+      VPackSlice idSlice = res.answer->payload().get(std::vector<std::string>{"result", "id"});
+      TRI_ASSERT(idSlice.isString());
+      TRI_ASSERT(StringUtils::uint64(idSlice.copyString()) != state.id() + 1);
+#endif
     }
   }
-  
-  return Result(TRI_ERROR_TRANSACTION_INTERNAL, "could not begin transaction");
+  return nrGood > 0 ? TRI_ERROR_NO_ERROR : TRI_ERROR_CLUSTER_BACKEND_UNAVAILABLE;
 }
   
 namespace {
-  Result commitAbortTransaction(arangodb::TransactionState* state, transaction::Status status) {
-    TRI_ASSERT(state != nullptr && state->isRunning());
-    TRI_ASSERT(!state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
+  Result commitAbortTransaction(arangodb::TransactionState& state, transaction::Status status) {
+    TRI_ASSERT(state.isRunning());
+    TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
     
     auto cc = ClusterComm::instance();
     if (cc == nullptr) {
@@ -2761,7 +2876,7 @@ namespace {
       return TRI_ERROR_SHUTTING_DOWN;
     }
     //std::vector<ServerID> DBservers = ci->getCurrentDBServers();
-    std::string url = "/_api/transaction/" + std::to_string(state->id() + 1);
+    std::string url = "/_api/transaction/" + std::to_string(state.id() + 1);
     
     RequestType rtype;
     if (status == transaction::Status::COMMITTED) {
@@ -2774,7 +2889,7 @@ namespace {
     
     std::shared_ptr<std::string> body;
     std::vector<ClusterCommRequest> requests;
-    for (std::string const& server : state->servers()) {
+    for (std::string const& server : state.servers()) {
       requests.emplace_back("server:" + server, rtype, url, body);
     }
     
@@ -2783,7 +2898,7 @@ namespace {
     cc->performRequests(requests, CL_DEFAULT_TIMEOUT, nrDone, Logger::COMMUNICATION, false);
     
     ClusterCommResult const& result = requests[0].result;
-    int commError = handleGeneralCommErrors(&result);
+    int commError = ::handleGeneralCommErrors(&result);
     if (commError != TRI_ERROR_NO_ERROR) {
       // oh-oh cluster is in a bad state
       return commError;
@@ -2793,7 +2908,7 @@ namespace {
         result.answer_code == arangodb::rest::ResponseCode::CREATED) {
       if (result.answer->payload().isObject()) {
         VPackSlice idSlice = result.answer->payload().get(std::vector<std::string>{"result", "id"});
-        if (idSlice.isString() && basics::StringUtils::uint64(idSlice.copyString()) == state->id() + 1) {
+        if (idSlice.isString() && basics::StringUtils::uint64(idSlice.copyString()) == state.id() + 1) {
           return TRI_ERROR_NO_ERROR; // success
         }
       }
@@ -2804,20 +2919,21 @@ namespace {
 }
 
 /// @brief commit a transaction on a subordinate
-Result ClusterMethods::commitTransaction(arangodb::TransactionState* state) {
+Result ClusterMethods::commitTransaction(arangodb::TransactionState& state) {
   return commitAbortTransaction(state, transaction::Status::COMMITTED);
 }
 
 /// @brief commit a transaction on a subordinate
-Result ClusterMethods::abortTransaction(arangodb::TransactionState* state) {
+Result ClusterMethods::abortTransaction(arangodb::TransactionState& state) {
   return commitAbortTransaction(state, transaction::Status::ABORTED);
 }
   
 /// @brief set the transaction ID header
-void ClusterMethods::transactionHeader(arangodb::TransactionState* state,
+void ClusterMethods::transactionHeader(arangodb::TransactionState& state,
                                         std::unordered_map<std::string, std::string>& headers) {
-  std::string value = std::to_string(state->id() + 1);
-  if (!state->hasHint(arangodb::transaction::Hints::Hint::EL_CHEAPO)) {
+  std::string value = std::to_string(state.id() + 1);
+  // receiving side should just use the provided ID for consistency
+  if (state.hasHint(arangodb::transaction::Hints::Hint::SINGLE_OPERATION)) {
     value += " begin";
   }
   headers.emplace(arangodb::StaticStrings::TransactionId, std::move(value));
@@ -2991,7 +3107,7 @@ int fetchEdgesFromEngines(
   for (auto const& req : requests) {
     bool allCached = true;
     auto res = req.result;
-    int commError = handleGeneralCommErrors(&res);
+    int commError = ::handleGeneralCommErrors(&res);
     if (commError != TRI_ERROR_NO_ERROR) {
       // oh-oh cluster is in a bad state
       return commError;

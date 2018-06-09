@@ -327,14 +327,6 @@ Result executeTransactionJS(
   auto trx = std::make_unique<transaction::Methods>(transactionContext, readCollections,
                                                     writeCollections, exclusiveCollections,
                                                     trxOptions);
-  if (ServerState::instance()->isCoordinator()) {
-    // we need to run this as a cluster-wide transaction, but we do not
-    // want this to be managed by the TransactionManager
-    trx->addHint(transaction::Hints::Hint::EL_CHEAPO);
-    // transactionmanager checks for this flag and skips the transaction
-    // the flag has no effect on the coordinator anyway
-    trx->addHint(transaction::Hints::Hint::SINGLE_OPERATION);
-  }
 
   rv = trx->begin();
 

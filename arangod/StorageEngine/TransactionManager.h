@@ -44,80 +44,73 @@ struct TransactionData {
 class TransactionManager {
   static constexpr size_t numBuckets = 16;
   static constexpr double defaultTTL = 60.0;
-  
+
  public:
   TransactionManager() : _nrRunning(0) {}
   virtual ~TransactionManager() {}
-  
+
  public:
-  
-  typedef std::function<void(TransactionState& state)> StatusChangeCallback;
-  typedef std::function<void(TRI_voc_tid_t, TransactionData const*)> TrxCallback;
-  
-  enum class Ownership : bool {
-    Lease = true,
-    Move = false
-  };
+  typedef std::function<void(TRI_voc_tid_t, TransactionData const*)>
+      TrxCallback;
+
+  enum class Ownership : bool { Lease = true, Move = false };
 
   // register a list of failed transactions
-  void registerFailedTransactions(std::unordered_set<TRI_voc_tid_t> const& failedTransactions);
-  
+  void registerFailedTransactions(
+      std::unordered_set<TRI_voc_tid_t> const& failedTransactions);
+
   // unregister a list of failed transactions
-  void unregisterFailedTransactions(std::unordered_set<TRI_voc_tid_t> const& failedTransactions);
-  
+  void unregisterFailedTransactions(
+      std::unordered_set<TRI_voc_tid_t> const& failedTransactions);
+
   // return the set of failed transactions
   std::unordered_set<TRI_voc_tid_t> getFailedTransactions() const;
-  
+
   // register a transaction
-  void registerTransaction(TransactionState&, std::unique_ptr<TransactionData> data);
-  
+  void registerTransaction(TransactionState&,
+                           std::unique_ptr<TransactionData> data);
+
   // unregister a transaction
   void unregisterTransaction(TRI_voc_tid_t transactionId, bool markAsFailed);
-  
+
   // iterate all the active transactions
   void iterateActiveTransactions(TrxCallback const&);
-  
+
   uint64_t getActiveTransactionCount();
-  
+
   /// @brief lease the transaction, increases nesting
   TransactionState* lookup(TRI_voc_tid_t, Ownership action) const;
-  
+
   /// @brief collect forgotten transactions
   void garbageCollect();
-  
-  void addStatusChangeCallback(StatusChangeCallback const* cb) {
-    _statusChangeCallbacks.emplace_back(cb);
-  }
-  
-protected:
-  
+
+ protected:
   virtual bool keepTransactionData(TransactionState const&) const = 0;
-  
+
  private:
   // hashes the transaction id into a bucket
-  inline size_t getBucket(TRI_voc_tid_t id) const { return std::hash<TRI_voc_cid_t>()(id) % numBuckets; }
-  
+  inline size_t getBucket(TRI_voc_tid_t id) const {
+    return std::hash<TRI_voc_cid_t>()(id) % numBuckets;
+  }
+
   // a lock protecting ALL buckets in _transactions
   mutable basics::ReadWriteLock _allTransactionsLock;
-  
+
   struct {
     // a lock protecting _activeTransactions and _failedTransactions
     mutable basics::ReadWriteLock _lock;
-    
+
     // currently ongoing transactions
-    std::unordered_map<TRI_voc_tid_t, std::unique_ptr<TransactionData>> _activeTransactions;
-    
+    std::unordered_map<TRI_voc_tid_t, std::unique_ptr<TransactionData>>
+        _activeTransactions;
+
     // set of failed transactions
     std::unordered_set<TRI_voc_tid_t> _failedTransactions;
   } _transactions[numBuckets];
-  
+
   /// Nr of running transactions
   std::atomic<uint64_t> _nrRunning;
-  
-  // functrs to call for status change (pointer to allow for use of std::vector)
-  std::vector<StatusChangeCallback const*> _statusChangeCallbacks;
 };
-
 }
 
 #endif

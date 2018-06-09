@@ -250,11 +250,9 @@ Result auth::UserManager::storeUserInternal(auth::User const& entry, bool replac
   auto ctx = transaction::StandaloneContext::Create(*vocbase);
   SingleCollectionTransaction trx(ctx, TRI_COL_NAME_USERS,
                                   AccessMode::Type::WRITE);
-
   trx.addHint(transaction::Hints::Hint::SINGLE_OPERATION);
 
   Result res = trx.begin();
-
   if (res.ok()) {
     OperationOptions opts;
 

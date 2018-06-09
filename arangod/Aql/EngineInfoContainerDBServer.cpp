@@ -860,13 +860,21 @@ Result EngineInfoContainerDBServer::buildEngines(
   
   // lazily begin transactions on leaders if necessary
   transaction::Methods* trx = _query->trx();
-  if (trx->state()->hasHint(transaction::Hints::Hint::EL_CHEAPO)) {
+  // snippets already know which shards to lock, there is no need for us to
+  // start a managed begin / end transaction for a single AQL query
+  if (trx->state()->hasHint(transaction::Hints::Hint::MANAGED)) {
+    std::vector<std::string> servers;
     for (auto const& it : dbServerMapping) {
-      ClusterMethods::beginTransactionSubordinate(trx->state(), it.first);
+      servers.emplace_back(it.first);
+    }
+    // start transaction on all servers with snippets
+    Result res = ClusterMethods::beginTransactionOnLeaders(*(trx->state()), servers);
+    if (res.fail()) {
+      return res;
     }
   }
   // add the transaction ID header
-  ClusterMethods::transactionHeader(trx->state(), headers);
+  ClusterMethods::transactionHeader(*(trx->state()), headers);
 
   for (auto& it : dbServerMapping) {
     std::string const serverDest = "server:" + it.first;

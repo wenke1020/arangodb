@@ -818,13 +818,16 @@ Result transaction::Methods::commit() {
       return Result(TRI_ERROR_ARANGO_READ_ONLY, "server is in read-only mode");
     }
   }
-
-  /*if (_state->isCoordinator()) {
-    if (_state->isTopLevelTransaction()) {
-      _state->updateStatus(transaction::Status::COMMITTED);
+  
+  if (_state->isRunningInCluster() && _state->isTopLevelTransaction()) {
+    // first commit transaction on subordinate servers
+    Result res = ClusterMethods::commitTransaction(*_state);
+    if (res.fail()) {
+      LOG_DEVEL << "failed to commit transaction on subordinates " << res.errorMessage();
+      //_state->abortTransaction(this); // TODO abort locally ?
+      return res;
     }
-    return Result();
-  }*/
+  }
 
   return _state->commitTransaction(this);
 }
@@ -835,14 +838,15 @@ Result transaction::Methods::abort() {
     // transaction not created or not running
     return Result(TRI_ERROR_TRANSACTION_INTERNAL, "transaction not running on abort");
   }
-
-  /*if (_state->isCoordinator()) {
-    if (_state->isTopLevelTransaction()) {
-      _state->updateStatus(transaction::Status::ABORTED);
+  
+  if (_state->isRunningInCluster() && _state->isTopLevelTransaction()) {
+    // first commit transaction on subordinate servers
+    Result res = ClusterMethods::abortTransaction(*_state);
+    if (res.fail()) {
+      LOG_DEVEL << "failed to abort transaction on subordinates " << res.errorMessage();
+      return res;
     }
-
-    return Result();
-  }*/
+  }
 
   return _state->abortTransaction(this);
 }
@@ -1547,8 +1551,6 @@ OperationResult transaction::Methods::insertLocal(
       return res;
     }
 
-
-
     if (!options.silent || _state->isDBServer()) {
       TRI_ASSERT(!documentResult.empty());
 
@@ -1597,7 +1599,7 @@ OperationResult transaction::Methods::insertLocal(
 
   if (res.ok() && _state->isDBServer()) {
     // Now replicate the same operation on all followers:
-    auto const& followerInfo = collection->followers();
+    std::unique_ptr<FollowerInfo> const& followerInfo = collection->followers();
     std::shared_ptr<std::vector<ServerID> const> followers = followerInfo->get();
     // Now see whether or not we have to do synchronous replication:
     bool doingSynchronousReplication = !isFollower && followers->size() > 0;
@@ -1645,21 +1647,19 @@ OperationResult transaction::Methods::insertLocal(
         count++;
       }
       if (count > 0) {
+        /*res = ClusterMethods::beginTransactionOnFollowers(*_state, *followerInfo, *followers);
+        if (res.fail()) {
+          return OperationResult(res); // should only fail if no follower was reachable
+        }*/
+        
         auto body = std::make_shared<std::string>();
         *body = payload.slice().toJson();
 
         // Now prepare the requests:
         std::vector<ClusterCommRequest> requests;
         for (auto const& f : *followers) {
-          
-#warning FIXME
-          Result r = ClusterMethods::beginTransactionSubordinate(_state, f);
-          if (r.fail()) {
-            
-          }
-          
           auto headers = std::make_unique<std::unordered_map<std::string, std::string>>();
-          ClusterMethods::transactionHeader(_state, *headers);
+          ClusterMethods::transactionHeader(*_state, *headers);
           requests.emplace_back("server:" + f, arangodb::rest::RequestType::POST,
                                 path, body, std::move(headers));
         }
@@ -1695,7 +1695,6 @@ OperationResult transaction::Methods::insertLocal(
                 replicationWorked = !found;
               }
               if (!replicationWorked) {
-                auto const& followerInfo = collection->followers();
                 if (followerInfo->remove((*followers)[i])) {
                   LOG_TOPIC(WARN, Logger::REPLICATION)
                     << "insertLocal: dropping follower " << (*followers)[i]
@@ -2548,7 +2547,6 @@ OperationResult transaction::Methods::truncateLocal(
 
         // Now prepare the requests:
         std::vector<ClusterCommRequest> requests;
-
         for (auto const& f : *followers) {
           requests.emplace_back("server:" + f, arangodb::rest::RequestType::PUT,
                                 path, body);

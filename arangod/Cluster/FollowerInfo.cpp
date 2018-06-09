@@ -34,7 +34,7 @@ using namespace arangodb;
 /// @brief get information about current followers of a shard.
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<std::vector<ServerID> const> FollowerInfo::get() {
+std::shared_ptr<std::vector<ServerID> const> FollowerInfo::get() const {
   MUTEX_LOCKER(locker, _mutex);
   return _followers;
 }
@@ -291,3 +291,18 @@ void FollowerInfo::clear() {
   auto v = std::make_shared<std::vector<ServerID>>();
   _followers = v;  // will cast to std::vector<ServerID> const
 }
+
+//////////////////////////////////////////////////////////////////////////////
+/// @brief check whether the given server is a follower
+//////////////////////////////////////////////////////////////////////////////
+
+bool FollowerInfo::contains(ServerID const& sid) const {
+  MUTEX_LOCKER(locker, _mutex);
+  for (auto const& s : *_followers) {
+    if (s == sid) {
+      return true;
+    }
+  }
+  return false;
+}
+

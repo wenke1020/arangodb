@@ -35,7 +35,7 @@ namespace arangodb {
 
 class FollowerInfo {
   std::shared_ptr<std::vector<ServerID> const> _followers;
-  Mutex                                        _mutex;
+  mutable Mutex                                _mutex;
   arangodb::LogicalCollection*                 _docColl;
   std::string                                  _theLeader;
      // if the latter is empty, the we are leading
@@ -49,7 +49,7 @@ class FollowerInfo {
   /// @brief get information about current followers of a shard.
   //////////////////////////////////////////////////////////////////////////////
 
-  std::shared_ptr<std::vector<ServerID> const> get();
+  std::shared_ptr<std::vector<ServerID> const> get() const;
 
   //////////////////////////////////////////////////////////////////////////////
   /// @brief add a follower to a shard, this is only done by the server side
@@ -75,6 +75,12 @@ class FollowerInfo {
   //////////////////////////////////////////////////////////////////////////////
 
   void clear();
+  
+  //////////////////////////////////////////////////////////////////////////////
+  /// @brief check whether the given server is a follower
+  //////////////////////////////////////////////////////////////////////////////
+
+  bool contains(ServerID const& s) const;
 
   //////////////////////////////////////////////////////////////////////////////
   /// @brief set leadership
@@ -89,7 +95,7 @@ class FollowerInfo {
   /// @brief get the leader
   //////////////////////////////////////////////////////////////////////////////
 
-  std::string getLeader() {
+  std::string getLeader() const {
     MUTEX_LOCKER(locker, _mutex);
     return _theLeader;
   }

@@ -35,18 +35,32 @@ class TransactionState;
 
 namespace transaction {
 
-/// transaction context that will lease a TransactionState
-/// from the TransactionManager
-class LeasedContext final : public Context {
+/// transaction context that will manage the creation or aquisition of a TransactionState
+/// for transction::Methods instances for cluster wide transactions. Cluster wide transactions
+/// essentially just mean that all operations will use a consistent transaction ID and
+/// on the same server the same TransactionState instance will be used.
+/// The class supports three different use-cases
+/// (1) Constructor with TID and Type::Default can be used to share a TransactionState between
+///     multiple transaction::Methods instances
+/// (2) Constructor with TID and Type::Global will try to lease an already existing TransactionState
+///     from the TransactionManager. This supports global transaction with explicit begin / end requests
+/// (3) Construcor with TransactionState* is used to manage a global transaction
+class ManagedContext final : public Context {
  public:
 
-  /// @brief create the context, will try to lease transaction from manager
-  explicit LeasedContext(TRI_vocbase_t& vocbase, TRI_voc_tid_t, bool allowCreating);
-  /// @brief create the context, will use given transaction
-  explicit LeasedContext(TRI_vocbase_t& vocbase, TransactionState*);
+  enum class Type {
+    Single = 0, /// transaction with pre-defined ID
+    Global = 1, /// global transaction with begin / end semantics
+    Internal = 2
+  };
+  
+  /// @brief create the context, with given TID
+  explicit ManagedContext(TRI_vocbase_t& vocbase, TRI_voc_tid_t, Type ctxType);
+  /// @brief create the context, will use given TransactionState
+  explicit ManagedContext(TRI_vocbase_t& vocbase, TransactionState*);
 
   /// @brief destroy the context
-  ~LeasedContext() = default;
+  ~ManagedContext() = default;
 
   /// @brief order a custom type handler
   std::shared_ptr<arangodb::velocypack::CustomTypeHandler>
@@ -56,7 +70,7 @@ class LeasedContext final : public Context {
   CollectionNameResolver const& resolver() override final;
 
   /// @brief get parent transaction (if any) and increase nesting
-  TransactionState* leaseParentTransaction() const override;
+  TransactionState* leaseParentTransaction() override;
 
   /// @brief register the transaction,
   void registerTransaction(TransactionState*) override;
@@ -73,7 +87,9 @@ class LeasedContext final : public Context {
 private:
   /// @brief ID of the transaction to use
   TRI_voc_tid_t const _tid;
-  bool const _allowCreatingNew;
+  /// @brief is this managing a global context
+  ManagedContext::Type const _ctxType;
+  /// @brief managed TransactionState
   TransactionState *_state;
 };
 

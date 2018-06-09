@@ -35,6 +35,8 @@
 #include "VocBase/AccessMode.h"
 #include "VocBase/voc-types.h"
 
+#include <atomic>
+
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
 
 #define LOG_TRX(trx, level)                        \
@@ -69,6 +71,8 @@ class TransactionState {
     typedef std::unique_ptr<Cookie> ptr;
     virtual ~Cookie() {}
   };
+  
+  typedef std::function<void(TransactionState& state)> StatusChangeCallback;
 
   TransactionState() = delete;
   TransactionState(TransactionState const&) = delete;
@@ -80,6 +84,9 @@ class TransactionState {
     transaction::Options const& options
   );
   virtual ~TransactionState();
+  
+  /// @brief add a callback to be called for state change events
+  void addStatusChangeCallback(StatusChangeCallback const& callback);
 
   /// @return a cookie associated with the specified key, nullptr if none
   Cookie* cookie(void const* key) noexcept;
@@ -96,19 +103,23 @@ class TransactionState {
 
   transaction::Options& options() { return _options; }
   transaction::Options const& options() const { return _options; }
-  TRI_vocbase_t& vocbase() const { return _vocbase; }
-  TRI_voc_tid_t id() const { return _id; }
-  transaction::Status status() const { return _status; }
-  bool isRunning() const { return _status == transaction::Status::RUNNING; }
+  inline TRI_vocbase_t& vocbase() const { return _vocbase; }
+  inline TRI_voc_tid_t id() const { return _id; }
+  inline transaction::Status status() const { return _status; }
+  inline bool isRunning() const { return _status == transaction::Status::RUNNING; }
 
-  int increaseNesting() { return ++_nestingLevel; }
-  int decreaseNesting() {
-    TRI_ASSERT(_nestingLevel > 0);
-    return --_nestingLevel;
+  int increaseNesting() {
+    return _nestingLevel.fetch_add(1, std::memory_order_relaxed) + 1;
   }
-  int nestingLevel() const { return _nestingLevel; }
-  bool isTopLevelTransaction() const { return _nestingLevel == 0; }
-  bool isEmbeddedTransaction() const { return !isTopLevelTransaction(); }
+  int decreaseNesting() {
+    TRI_ASSERT(isEmbeddedTransaction());
+    return _nestingLevel.fetch_sub(1, std::memory_order_relaxed) - 1;
+  }
+  inline int nestingLevel() const { return _nestingLevel.load(std::memory_order_relaxed); }
+  inline bool isTopLevelTransaction() const {
+    return nestingLevel() == 0;
+  }
+  inline bool isEmbeddedTransaction() const { return !isTopLevelTransaction(); }
 
   double timeout() const { return _options.lockTimeout; }
   void timeout(double value) {
@@ -152,6 +163,7 @@ class TransactionState {
   /// @brief release collection locks for a transaction
   int unuseCollections(int nestingLevel);
 
+  /// FIXME delete, server-based locking should take care of this
   int lockCollections();
 
   /// @brief whether or not a transaction consists of a single operation
@@ -234,15 +246,19 @@ class TransactionState {
   /// @brief cache role of the server
   ServerState::RoleEnum const _serverRole;
 
-  /// transaction hints hints
+  /// transaction hints hints, set in beginTransaction on top-level
   transaction::Hints _hints;
-  int _nestingLevel;
+  /// nestedness of this transaction. Also used as a reference
+  /// count for the number of transaction::Method instances
+  std::atomic<unsigned int> _nestingLevel;
 
   transaction::Options _options;
 
  private:
   /// @brief a collection of stored cookies
   std::map<void const*, Cookie::ptr> _cookies;
+  /// functrs to call for status change (pointer to allow for use of std::vector)
+  std::vector<StatusChangeCallback const*> _statusChangeCallbacks;
   /// @brief servers we already talked to for this transactions
   std::set<std::string> _servers;
 };

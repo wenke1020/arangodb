@@ -50,7 +50,7 @@ class StandaloneContext final : public Context {
   orderCustomTypeHandler() override final;
 
   /// @brief return the parent transaction (none in our case)
-  TransactionState* leaseParentTransaction() const override { return nullptr; }
+  TransactionState* leaseParentTransaction() override { return nullptr; }
 
   /// @brief register the transaction, does nothing
   void registerTransaction(TransactionState*) override {}

@@ -32,7 +32,7 @@
 #include "StorageEngine/TransactionManager.h"
 #include "StorageEngine/TransactionManagerFeature.h"
 #include "StorageEngine/TransactionState.h"
-#include "Transaction/LeasedContext.h"
+#include "Transaction/ManagedContext.h"
 #include "Transaction/Methods.h"
 #include "V8Server/V8Context.h"
 #include "V8Server/V8DealerFeature.h"
@@ -48,7 +48,7 @@ using namespace arangodb::rest;
 
 struct ManagingTransaction final : transaction::Methods {
   
-  ManagingTransaction(std::shared_ptr<transaction::LeasedContext> const& ctx,
+  ManagingTransaction(std::shared_ptr<transaction::ManagedContext> const& ctx,
                       transaction::Options const& opts)
   : Methods(ctx, opts) {
     TRI_ASSERT(_state->isEmbeddedTransaction());
@@ -128,6 +128,10 @@ void RestTransactionHandler::executeBegin() {
   bool found = false;
   std::string value = _request->header(StaticStrings::TransactionId, found);
   if (found) {
+    if (ServerState::instance()->isSingleServerOrCoordinator()) {
+      generateError(rest::ResponseCode::BAD, TRI_ERROR_NOT_IMPLEMENTED,
+                    "Not supported on this server type");
+    }
     tid = basics::StringUtils::uint64(value);
     if (tid == 0) { // tid % 3 == 0
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
@@ -216,7 +220,7 @@ void RestTransactionHandler::executeBegin() {
   // start the transaction
   transaction::Hints hints;
   hints.set(transaction::Hints::Hint::LOCK_ENTIRELY);
-  hints.set(transaction::Hints::Hint::EL_CHEAPO);
+  hints.set(transaction::Hints::Hint::MANAGED);
   // will register itself with the transaction manager
   state->beginTransaction(hints);
   TRI_ASSERT(state->status() == transaction::Status::RUNNING);
@@ -250,9 +254,8 @@ void RestTransactionHandler::executeCommit() {
     generateError(rest::ResponseCode::NOT_FOUND, TRI_ERROR_TRANSACTION_NOT_FOUND);
     return;
   }
-  TRI_DEFER(state->decreaseNesting());
   
-  auto ctx = std::make_shared<transaction::LeasedContext>(_vocbase, state.get());
+  auto ctx = std::make_shared<transaction::ManagedContext>(_vocbase, state.get());
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
   TRI_ASSERT(trx.state()->isRunning());
@@ -286,9 +289,8 @@ void RestTransactionHandler::executeAbort() {
     generateError(rest::ResponseCode::NOT_FOUND, TRI_ERROR_TRANSACTION_NOT_FOUND);
     return;
   }
-  TRI_DEFER(state->decreaseNesting());
   
-  auto ctx = std::make_shared<transaction::LeasedContext>(_vocbase, state.get());
+  auto ctx = std::make_shared<transaction::ManagedContext>(_vocbase, state.get());
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
   TRI_ASSERT(trx.state()->status() == transaction::Status::RUNNING);

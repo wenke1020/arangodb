@@ -20,7 +20,7 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "LeasedContext.h"
+#include "ManagedContext.h"
 #include "StorageEngine/TransactionState.h"
 #include "StorageEngine/TransactionManager.h"
 #include "StorageEngine/TransactionManagerFeature.h"
@@ -33,22 +33,22 @@ namespace arangodb {
 //static thread_local TRI_voc_tid_t CURRENT_TRX_ID;
 
 /// @brief create the context
-transaction::LeasedContext::LeasedContext(TRI_vocbase_t& vocbase,
-                                          TRI_voc_tid_t tid,
-                                          bool allowCreating)
-  : Context(vocbase), _tid(tid), _allowCreatingNew(allowCreating), _state(nullptr) {
+transaction::ManagedContext::ManagedContext(TRI_vocbase_t& vocbase,
+                                            TRI_voc_tid_t tid,
+                                            transaction::ManagedContext::Type ctxType)
+  : Context(vocbase), _tid(tid), _ctxType(ctxType), _state(nullptr) {
   TRI_ASSERT(_tid != 0);
 }
   
 /// @brief create the context, will use given transaction
-transaction::LeasedContext::LeasedContext(TRI_vocbase_t& vocbase, TransactionState* state)
-  : Context(vocbase), _tid(state->id()), _allowCreatingNew(false), _state(state) {
+transaction::ManagedContext::ManagedContext(TRI_vocbase_t& vocbase, TransactionState* state)
+  : Context(vocbase), _tid(state->id()), _ctxType(ManagedContext::Type::Internal), _state(state) {
     TRI_ASSERT(_state != nullptr);
     TRI_ASSERT(_state->isTopLevelTransaction());
 }
 
 /// @brief order a custom type handler for the collection
-std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::LeasedContext::orderCustomTypeHandler() {
+std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::ManagedContext::orderCustomTypeHandler() {
   if (_customTypeHandler == nullptr) {
     _customTypeHandler.reset(
       transaction::Context::createCustomTypeHandler(&_vocbase, &resolver())
@@ -63,7 +63,7 @@ std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::LeasedCont
 }
 
 /// @brief return the resolver
-CollectionNameResolver const& transaction::LeasedContext::resolver() {
+CollectionNameResolver const& transaction::ManagedContext::resolver() {
   if (_resolver == nullptr) {
     createResolver();
   }
@@ -74,47 +74,51 @@ CollectionNameResolver const& transaction::LeasedContext::resolver() {
 }
   
 /// @brief get parent transaction (if any) and increase nesting
-TransactionState* transaction::LeasedContext::leaseParentTransaction() const {
+TransactionState* transaction::ManagedContext::leaseParentTransaction() {
   if (_state != nullptr) {
+    // no single document transaction should have multiple Method instances
+    TRI_ASSERT(_ctxType != ManagedContext::Type::Single);
     _state->increaseNesting();
     return _state;
   }
-  TransactionManager* mgr = TransactionManagerFeature::manager();
-  TRI_ASSERT(mgr != nullptr);
-  // will call increaseNesting() for us
-  TransactionState* state = mgr->lookup(_tid, TransactionManager::Ownership::Lease);
-  // FIXME: fix these asserts
-  TRI_ASSERT(_allowCreatingNew || state != nullptr);
-  TRI_ASSERT(state == nullptr || state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
-  return state;
+  if (_ctxType == ManagedContext::Type::Global) {
+    TransactionManager* mgr = TransactionManagerFeature::manager();
+    TRI_ASSERT(mgr != nullptr);
+    // will call increaseNesting() for us
+    _state = mgr->lookup(_tid, TransactionManager::Ownership::Lease);
+    if (_state == nullptr) {
+      THROW_ARANGO_EXCEPTION(TRI_ERROR_TRANSACTION_NOT_FOUND);
+    }
+    return _state;
+  }
+  TRI_ASSERT(_state == nullptr && _ctxType == Type::Single);
+  return nullptr;
 }
 
 /// @brief register the transaction, so other Method instances can get it
-void transaction::LeasedContext::registerTransaction(TransactionState* state) {
-  TRI_ASSERT(_allowCreatingNew || state->hasHint(transaction::Hints::Hint::EL_CHEAPO));
-  //_tid = trx->id();
+void transaction::ManagedContext::registerTransaction(TransactionState* state) {
+  TRI_ASSERT(_state == nullptr);
+  TRI_ASSERT(_ctxType == Type::Single || state->hasHint(transaction::Hints::Hint::MANAGED));
   TRI_ASSERT(_tid == state->id());
-  _state = state; // does not necessarily need to happen here
+  _state = state;
 }
   
 /// @brief unregister the transaction
-void transaction::LeasedContext::unregisterTransaction() noexcept {
-  //_tid = 0;
+void transaction::ManagedContext::unregisterTransaction() noexcept {
   _state = nullptr;
 }
   
 /// @brief whether or not the transaction is embeddable
-bool transaction::LeasedContext::isEmbeddable() const {
+bool transaction::ManagedContext::isEmbeddable() const {
   //TRI_ASSERT(CURRENT_TRX_ID != 0);
   return true;
 }
   
-TRI_voc_tid_t transaction::LeasedContext::generateId() const {
-  if (!_allowCreatingNew) {
+TRI_voc_tid_t transaction::ManagedContext::generateId() const {
+  if (_ctxType == Type::Global || _ctxType == Type::Internal) {
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_INTERNAL,
                                    "starting a new transaction is not allowed");
   }
   return _tid;
 }
-
 } // arangodb

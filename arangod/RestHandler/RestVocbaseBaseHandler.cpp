@@ -34,7 +34,7 @@
 #include "Meta/conversion.h"
 #include "Rest/HttpRequest.h"
 #include "Transaction/Methods.h"
-#include "Transaction/LeasedContext.h"
+#include "Transaction/ManagedContext.h"
 #include "Transaction/StandaloneContext.h"
 
 #include <velocypack/Builder.h>
@@ -583,11 +583,11 @@ std::shared_ptr<transaction::Context> RestVocbaseBaseHandler::transactionContext
     if (tid == 0) {
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
     }
-    bool allowCreateNew = false;
-    if (pos > 0 && pos < value.size()) {
-      allowCreateNew = value.substr(pos) == " begin";
+    transaction::ManagedContext::Type ctxType = transaction::ManagedContext::Type::Global;
+    if (pos > 0 && pos < value.size() && value.substr(pos) == " begin") {
+      ctxType = transaction::ManagedContext::Type::Single;
     }
-    return std::make_shared<transaction::LeasedContext>(_vocbase, tid, allowCreateNew);
+    return std::make_shared<transaction::ManagedContext>(_vocbase, tid, ctxType);
   }
   return transaction::StandaloneContext::Create(_vocbase);
 }
