@@ -867,46 +867,40 @@ AqlValue Expression::executeSimpleExpressionFCallCxx(
   VPackFunctionParameters parameters{arena};
  
   // same here
-  SmallVector<uint8_t>::allocator_type::arena_type arena2;
-  SmallVector<uint8_t> destroyParameters{arena2};
+  SmallVector<uint64_t>::allocator_type::arena_type arena2;
+  SmallVector<uint64_t> destroyParameters{arena2};
+
   parameters.reserve(n);
   destroyParameters.reserve(n);
 
-  try {
-    for (size_t i = 0; i < n; ++i) {
-      auto arg = member->getMemberUnchecked(i);
-
-      if (arg->type == NODE_TYPE_COLLECTION) {
-        parameters.emplace_back(arg->getStringValue(), arg->getStringLength());
-        destroyParameters.push_back(1);
-      } else {
-        bool localMustDestroy;
-        parameters.emplace_back(executeSimpleExpression(arg, trx, localMustDestroy, false));
-        destroyParameters.push_back(localMustDestroy ? 1 : 0);
-      }
-    }
-
-    TRI_ASSERT(parameters.size() == destroyParameters.size());
-    TRI_ASSERT(parameters.size() == n);
-
-    AqlValue a = func->implementation(_ast->query(), trx, parameters);
-    mustDestroy = true; // function result is always dynamic
-
+  auto guard = scopeGuard([&destroyParameters, &parameters, &n]() {
     for (size_t i = 0; i < n; ++i) {
       if (destroyParameters[i]) {
         parameters[i].destroy();
       }
     }
-    return a;
-  } catch (...) {
-    // prevent leak and rethrow error
-    for (size_t i = 0; i < parameters.size(); ++i) {
-      if (destroyParameters[i]) {
-        parameters[i].destroy();
-      }
+  });
+
+  for (size_t i = 0; i < n; ++i) {
+    auto arg = member->getMemberUnchecked(i);
+
+    if (arg->type == NODE_TYPE_COLLECTION) {
+      parameters.emplace_back(arg->getStringValue(), arg->getStringLength());
+      destroyParameters.push_back(1);
+    } else {
+      bool localMustDestroy;
+      parameters.emplace_back(executeSimpleExpression(arg, trx, localMustDestroy, false));
+      destroyParameters.push_back(localMustDestroy ? 1 : 0);
     }
-    throw;
   }
+
+  TRI_ASSERT(parameters.size() == destroyParameters.size());
+  TRI_ASSERT(parameters.size() == n);
+
+  AqlValue a = func->implementation(_ast->query(), trx, parameters);
+  mustDestroy = true; // function result is always dynamic
+
+  return a;
 }
 
 AqlValue Expression::invokeV8Function(arangodb::aql::Query* query,

@@ -42,8 +42,8 @@
 #include "VocBase/ticks.h"
 #include "VocBase/vocbase.h"
 
-#ifdef _MSC_VER
-#include <windows.h>
+#ifdef _WIN32
+#include <io.h>
 #else
 #include <unistd.h>
 #endif
@@ -54,7 +54,7 @@ using namespace arangodb;
 using namespace arangodb::pregel;
 
 static uint64_t TRI_totalSystemMemory() {
-#ifdef _MSC_VER
+#ifdef _WIN32
   MEMORYSTATUSEX status;
   status.dwLength = sizeof(status);
   GlobalMemoryStatusEx(&status);
@@ -335,7 +335,7 @@ std::unique_ptr<transaction::Methods> GraphStore<V, E>::_createTransaction() {
   transaction::Options trxOptions;
   trxOptions.waitForSync = false;
   trxOptions.allowImplicitCollections = true;
-  std::shared_ptr<transaction::Context> ctx = transaction::StandaloneContext::Create(_vocbaseGuard.database());
+  auto ctx = transaction::StandaloneContext::Create(_vocbaseGuard.database());
   std::unique_ptr<transaction::Methods> trx(
                 new transaction::Methods(ctx, {}, {}, {}, trxOptions));
   Result res = trx->begin();
@@ -514,17 +514,12 @@ void GraphStore<V, E>::_storeVertices(std::vector<ShardID> const& globalShards,
       currentShard = it->shard();
 
       ShardID const& shard = globalShards[currentShard];
-      transaction::Options transactionOptions;
+      transaction::Options trxOptions;
 
-      transactionOptions.waitForSync = false;
-      transactionOptions.allowImplicitCollections = false;
-      trx.reset(new transaction::Methods(
-        transaction::StandaloneContext::Create(_vocbaseGuard.database()),
-        {},
-        {shard},
-        {},
-        transactionOptions
-      ));
+      trxOptions.waitForSync = false;
+      trxOptions.allowImplicitCollections = false;
+      std::shared_ptr<transaction::Context> ctx(transaction::StandaloneContext::Create(_vocbaseGuard.database()));
+      trx.reset(new transaction::Methods(ctx, {}, {shard}, {}, trxOptions));
       res = trx->begin();
 
       if (!res.ok()) {
