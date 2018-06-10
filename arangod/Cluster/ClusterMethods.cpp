@@ -2869,6 +2869,9 @@ namespace {
   Result commitAbortTransaction(arangodb::TransactionState& state, transaction::Status status) {
     TRI_ASSERT(state.isRunning());
     TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
+    if (state.servers().empty()) {
+      return Result();
+    }
     
     auto cc = ClusterComm::instance();
     if (cc == nullptr) {
@@ -2934,7 +2937,7 @@ void ClusterMethods::transactionHeader(arangodb::TransactionState& state,
   std::string value = std::to_string(state.id() + 1);
   // receiving side should just use the provided ID for consistency
   if (state.hasHint(arangodb::transaction::Hints::Hint::SINGLE_OPERATION)) {
-    value += " begin";
+    value += " single";
   }
   headers.emplace(arangodb::StaticStrings::TransactionId, std::move(value));
 }

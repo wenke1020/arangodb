@@ -584,7 +584,7 @@ std::shared_ptr<transaction::Context> RestVocbaseBaseHandler::transactionContext
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
     }
     transaction::ManagedContext::Type ctxType = transaction::ManagedContext::Type::Global;
-    if (pos > 0 && pos < value.size() && value.substr(pos) == " begin") {
+    if (pos > 0 && pos < value.size() && value.substr(pos) == " single") {
       ctxType = transaction::ManagedContext::Type::Single;
     }
     return std::make_shared<transaction::ManagedContext>(_vocbase, tid, ctxType);

@@ -823,7 +823,9 @@ Result transaction::Methods::commit() {
     }
   }
   
-  if (_state->isRunningInCluster() && _state->isTopLevelTransaction()) {
+  if (_state->isRunningInCluster() &&
+      _state->isTopLevelTransaction() &&
+      !_state->hasHint(Hints::Hint::SINGLE_OPERATION)) {
     // first commit transaction on subordinate servers
     Result res = ClusterMethods::commitTransaction(*_state);
     if (res.fail()) {
