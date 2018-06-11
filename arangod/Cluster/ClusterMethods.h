@@ -238,7 +238,7 @@ int modifyDocumentOnCoordinator(
 /// @brief truncate a cluster collection on a coordinator
 ////////////////////////////////////////////////////////////////////////////////
 
-  int truncateCollectionOnCoordinator(std::string const& dbname,
+  int truncateCollectionOnCoordinator(arangodb::TransactionState&,
                                       std::string const& collname);
 
 ////////////////////////////////////////////////////////////////////////////////

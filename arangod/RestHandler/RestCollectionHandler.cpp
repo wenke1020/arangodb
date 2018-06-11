@@ -343,7 +343,7 @@ void RestCollectionHandler::handleCommandPut() {
           opts.isSynchronousReplicationFrom =
               _request->value("isSynchronousReplication");
 
-          auto ctx = transaction::StandaloneContext::Create(_vocbase);
+          auto ctx = transactionContext(); // supports global transaction
           SingleCollectionTransaction trx(ctx, coll, AccessMode::Type::EXCLUSIVE);
 
           res = trx.begin();

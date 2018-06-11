@@ -583,7 +583,7 @@ std::shared_ptr<transaction::Context> RestVocbaseBaseHandler::transactionContext
     if (tid == 0) {
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
     }
-    LOG_DEVEL << "Parsed " << StaticStrings::TransactionId << " " << value;
+    //LOG_DEVEL << "Parsed " << StaticStrings::TransactionId << " " << value;
     transaction::ManagedContext::Type ctxType = transaction::ManagedContext::Type::Global;
     if (pos > 0 && pos < value.size() && value.substr(pos) == " begin") {
       ctxType = transaction::ManagedContext::Type::Default;

@@ -1266,7 +1266,7 @@ Result createDocumentOnCoordinator(
     }
   }
   
-  // lazily begin transactions on followers
+  // lazily begin transactions on leaders
   if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
     Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
     if (res.fail()) {
@@ -1469,8 +1469,16 @@ int deleteDocumentOnCoordinator(
         return res;
       }
     }
-
+    
     // We sorted the shards correctly.
+    
+    // lazily begin transactions on leaders
+    if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+      Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
+      if (res.fail()) {
+        return res.errorNumber();
+      }
+    }
 
     // Now prepare the requests:
     std::vector<ClusterCommRequest> requests;
@@ -1610,7 +1618,7 @@ int deleteDocumentOnCoordinator(
 /// @brief truncate a cluster collection on a coordinator
 ////////////////////////////////////////////////////////////////////////////////
 
-int truncateCollectionOnCoordinator(std::string const& dbname,
+int truncateCollectionOnCoordinator(arangodb::TransactionState& state,
                                     std::string const& collname) {
   // Set a few variables needed for our work:
   ClusterInfo* ci = ClusterInfo::instance();
@@ -1620,6 +1628,7 @@ int truncateCollectionOnCoordinator(std::string const& dbname,
     return TRI_ERROR_SHUTTING_DOWN;
   }
 
+  std::string const& dbname = state.vocbase().name();
   // First determine the collection ID from the name:
   std::shared_ptr<LogicalCollection> collinfo;
   try {
@@ -1632,8 +1641,22 @@ int truncateCollectionOnCoordinator(std::string const& dbname,
   // Some stuff to prepare cluster-intern requests:
   // We have to contact everybody:
   auto shards = collinfo->shardIds();
+  
+  // lazily begin transactions on leaders
+  if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+    std::vector<ServerID> leaders;
+    for (auto const& shardServers : *shards) {
+      leaders.emplace_back(shardServers.second[0]);
+    }
+    Result res = ClusterMethods::beginTransactionOnLeaders(state, leaders);
+    if (res.fail()) {
+      return res.errorNumber();
+    }
+  }
+
   CoordTransactionID coordTransactionID = TRI_NewTickServer();
   std::unordered_map<std::string, std::string> headers;
+  ClusterMethods::transactionHeader(state, headers);
   for (auto const& p : *shards) {
     cc->asyncRequest("", coordTransactionID, "shard:" + p.first,
                      arangodb::rest::RequestType::PUT,
@@ -1786,7 +1809,7 @@ int getDocumentOnCoordinator(
     }
   }
 
-  // lazily begin transactions on followers
+  // lazily begin transactions on leaders
   if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
     Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
     if (res.fail()) {
@@ -2500,7 +2523,7 @@ int modifyDocumentOnCoordinator(
     }
   }
   
-  // lazily begin transactions on followers
+  // lazily begin transactions on leaders
   if (!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
     Result res = ::beginTransactionCoordinator(state, collinfo, shardMap);
     if (res.fail()) {

@@ -2477,7 +2477,7 @@ OperationResult transaction::Methods::truncate(
 OperationResult transaction::Methods::truncateCoordinator(
     std::string const& collectionName, OperationOptions& options) {
   return OperationResult(arangodb::truncateCollectionOnCoordinator(
-    vocbase().name(), collectionName)
+    *state, collectionName)
   );
 }
 #endif
