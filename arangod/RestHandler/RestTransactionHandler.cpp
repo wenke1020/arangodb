@@ -226,9 +226,12 @@ void RestTransactionHandler::executeBegin() {
   transaction::Hints hints;
   hints.set(transaction::Hints::Hint::LOCK_ENTIRELY);
   hints.set(transaction::Hints::Hint::MANAGED);
-  // will register itself with the transaction manager
-  state->beginTransaction(hints);
-  TRI_ASSERT(state->status() == transaction::Status::RUNNING);
+  Result res = state->beginTransaction(hints); // registers with transaction manager
+  if (res.fail()) {
+    generateError(res);
+    return;
+  }
+  TRI_ASSERT(state->isRunning());
   
 #ifdef ARANGODB_ENABLE_MAINTAINER_MODE
   TransactionManager* mgr = TransactionManagerFeature::manager();

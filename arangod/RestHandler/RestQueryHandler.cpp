@@ -31,7 +31,6 @@
 #include "Basics/VelocyPackHelper.h"
 #include "Logger/Logger.h"
 #include "Cluster/ClusterInfo.h"
-#include "Cluster/ClusterMethods.h"
 #include "Cluster/ServerState.h"
 #include "Rest/HttpRequest.h"
 #include "VocBase/vocbase.h"

@@ -823,14 +823,12 @@ Result transaction::Methods::commit() {
     }
   }
   
-  if (_state->isRunningInCluster() &&
-      _state->isTopLevelTransaction() &&
+  if (_state->isRunningInCluster() && _state->isTopLevelTransaction() &&
       !_state->hasHint(Hints::Hint::SINGLE_OPERATION)) {
     // first commit transaction on subordinate servers
     Result res = ClusterMethods::commitTransaction(*_state);
-    if (res.fail()) {
-      LOG_DEVEL << "failed to commit transaction on subordinates " << res.errorMessage();
-      //_state->abortTransaction(this); // TODO abort locally ?
+    if (res.fail()) { // do not commit locally
+      LOG_TOPIC(WARN, Logger::TRANSACTIONS) << "failed to commit on subordinates " << res.errorMessage();
       return res;
     }
   }
@@ -845,14 +843,12 @@ Result transaction::Methods::abort() {
     return Result(TRI_ERROR_TRANSACTION_INTERNAL, "transaction not running on abort");
   }
   
-  if (_state->isRunningInCluster() && _state->isTopLevelTransaction()) {
+  if (_state->isRunningInCluster() && _state->isTopLevelTransaction() &&
+      !_state->hasHint(Hints::Hint::SINGLE_OPERATION)) {
     // first commit transaction on subordinate servers
     Result res = ClusterMethods::abortTransaction(*_state);
-    if (res.fail()) {
-      LOG_DEVEL << "failed to abort transaction on subordinates: " << res.errorMessage();
-      // abort locally anyway
-#warning REMOVE
-      std::this_thread::sleep_for(std::chrono::seconds(10));
+    if (res.fail()) { // abort locally anyway, GC can cleanup
+      LOG_TOPIC(WARN, Logger::TRANSACTIONS) << "failed to abort on subordinates: " << res.errorMessage();
     }
   }
 

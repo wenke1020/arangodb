@@ -106,7 +106,7 @@ ArangoTransaction.prototype.collection = function(col) {
     return new ArangoTransactionCollection(col);
   }
   return new ArangoTransactionCollection(this._database._collection(col));
-}
+};
 
 ArangoTransaction.prototype.commit = function() {
   
@@ -118,7 +118,7 @@ ArangoTransaction.prototype.abort = function() {
 
 ArangoTransactionCollection.prototype.save = 
 ArangoTransactionCollection.prototype.insert = function(data, opts) {
-  if (this._id == 0) {
+  if (this._id === 0) {
     throw new ArangoError({
       error: true,
       code: internal.errors.ERROR_TRANSACTION_INTERNAL.code,
@@ -132,7 +132,7 @@ ArangoTransactionCollection.prototype.insert = function(data, opts) {
 };
 
 ArangoTransactionCollection.prototype.remove = function(id, opts) {
-  if (this._id == 0) {
+  if (this._id === 0) {
     throw new ArangoError({
       error: true,
       code: internal.errors.ERROR_TRANSACTION_INTERNAL.code,
@@ -146,7 +146,7 @@ ArangoTransactionCollection.prototype.remove = function(id, opts) {
 };
 
 ArangoTransactionCollection.prototype.replace = function(data, opts) {
-  if (this._id == 0) {
+  if (this._id === 0) {
     throw new ArangoError({
       error: true,
       code: internal.errors.ERROR_TRANSACTION_INTERNAL.code,
@@ -160,7 +160,7 @@ ArangoTransactionCollection.prototype.replace = function(data, opts) {
 };
 
 ArangoTransactionCollection.prototype.update = function(data, opts) {
-  if (this._id == 0) {
+  if (this._id === 0) {
     throw new ArangoError({
       error: true,
       code: internal.errors.ERROR_TRANSACTION_INTERNAL.code,
@@ -174,7 +174,7 @@ ArangoTransactionCollection.prototype.update = function(data, opts) {
 };
 
 ArangoTransactionCollection.prototype.truncate = function(opts) {
-  if (this._id == 0) {
+  if (this._id === 0) {
     throw new ArangoError({
       error: true,
       code: internal.errors.ERROR_TRANSACTION_INTERNAL.code,

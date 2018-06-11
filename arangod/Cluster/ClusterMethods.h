@@ -238,8 +238,8 @@ int modifyDocumentOnCoordinator(
 /// @brief truncate a cluster collection on a coordinator
 ////////////////////////////////////////////////////////////////////////////////
 
-  int truncateCollectionOnCoordinator(arangodb::TransactionState&,
-                                      std::string const& collname);
+Result truncateCollectionOnCoordinator(arangodb::TransactionState&,
+                                       std::string const& collname);
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief flush Wal on all DBservers

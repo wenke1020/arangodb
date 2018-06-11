@@ -25,7 +25,6 @@
 
 #include "Aql/Graphs.h"
 #include "Basics/StaticStrings.h"
-#include "Cluster/ClusterMethods.h"
 #include "Utils/OperationOptions.h"
 #include "Utils/SingleCollectionTransaction.h"
 #include "Transaction/Context.h"

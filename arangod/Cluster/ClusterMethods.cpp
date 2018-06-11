@@ -223,7 +223,7 @@ Result checkTransactionBeginResults(TransactionState const& state,
         if (idSlice.isString() && StringUtils::uint64(idSlice.copyString()) == state.id() + 1) {
           continue; // success
         }
-      } else if (res.answer_code == rest::ResponseCode::BAD && answer.isObject()) {
+      } else if (answer.isObject()) {
         return Result(VelocyPackHelper::readNumericValue(answer, StaticStrings::ErrorNum, TRI_ERROR_TRANSACTION_INTERNAL),
                       VelocyPackHelper::getStringValue(answer, StaticStrings::ErrorMessage, ""));
       }
@@ -1618,8 +1618,8 @@ int deleteDocumentOnCoordinator(
 /// @brief truncate a cluster collection on a coordinator
 ////////////////////////////////////////////////////////////////////////////////
 
-int truncateCollectionOnCoordinator(arangodb::TransactionState& state,
-                                    std::string const& collname) {
+arangodb::Result truncateCollectionOnCoordinator(arangodb::TransactionState& state,
+                                                 std::string const& collname) {
   // Set a few variables needed for our work:
   ClusterInfo* ci = ClusterInfo::instance();
   auto cc = ClusterComm::instance();
@@ -1650,7 +1650,7 @@ int truncateCollectionOnCoordinator(arangodb::TransactionState& state,
     }
     Result res = ClusterMethods::beginTransactionOnLeaders(state, leaders);
     if (res.fail()) {
-      return res.errorNumber();
+      return res;
     }
   }
 
@@ -1672,6 +1672,10 @@ int truncateCollectionOnCoordinator(arangodb::TransactionState& state,
     if (res.status == CL_COMM_RECEIVED) {
       if (res.answer_code == arangodb::rest::ResponseCode::OK) {
         nrok++;
+      } else if (res.answer->payload().isObject()) {
+        VPackSlice answer = res.answer->payload();
+        return Result(VelocyPackHelper::readNumericValue(answer, StaticStrings::ErrorNum, TRI_ERROR_TRANSACTION_INTERNAL),
+                      VelocyPackHelper::getStringValue(answer, StaticStrings::ErrorMessage, ""));
       }
     }
   }
@@ -1680,7 +1684,7 @@ int truncateCollectionOnCoordinator(arangodb::TransactionState& state,
   if (nrok < shards->size()) {
     return TRI_ERROR_CLUSTER_COULD_NOT_TRUNCATE_COLLECTION;
   }
-  return TRI_ERROR_NO_ERROR;
+  return Result();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2954,7 +2958,7 @@ namespace {
         }
       } else if (result.answer_code == rest::ResponseCode::NOT_FOUND) {
         return Result(TRI_ERROR_TRANSACTION_NOT_FOUND);
-      } else if (result.answer_code == rest::ResponseCode::BAD && answer.isObject()) {
+      } else if (answer.isObject()) {
         return Result(VelocyPackHelper::readNumericValue(answer, StaticStrings::ErrorNum, TRI_ERROR_TRANSACTION_INTERNAL),
                       VelocyPackHelper::getStringValue(answer, StaticStrings::ErrorMessage, ""));
       }
