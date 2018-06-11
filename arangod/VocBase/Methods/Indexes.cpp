@@ -347,12 +347,12 @@ Result Indexes::ensureIndex(LogicalCollection* collection,
 
   VPackBuilder defBuilder;
   StorageEngine* engine = EngineSelectorFeature::ENGINE;
-  int res = engine->indexFactory().enhanceIndexDefinition(
+  Result res = engine->indexFactory().enhanceIndexDefinition(
     definition, defBuilder, create, ServerState::instance()->isCoordinator()
-  ).errorNumber();
+  );
 
-  if (res != TRI_ERROR_NO_ERROR) {
-    return Result(res);
+  if (res.fail()) {
+    return res;
   }
 
   TRI_ASSERT(collection);
@@ -423,11 +423,9 @@ Result Indexes::ensureIndex(LogicalCollection* collection,
   if (ServerState::instance()->isCoordinator()) {
     VPackBuilder tmp;
 #ifdef USE_ENTERPRISE
-    Result res =
-        Indexes::ensureIndexCoordinatorEE(collection, indexDef, create, tmp);
+    res = Indexes::ensureIndexCoordinatorEE(collection, indexDef, create, tmp);
 #else
-    Result res =
-        Indexes::ensureIndexCoordinator(collection, indexDef, create, tmp);
+    res = Indexes::ensureIndexCoordinator(collection, indexDef, create, tmp);
 #endif
     if (!res.ok()) {
       return res;

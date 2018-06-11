@@ -72,6 +72,8 @@ void TransactionManager::registerTransaction(
   if (!isManaged && !keepTransactionData(state)) {
     return;
   }
+  
+  LOG_DEVEL << "Registering transaction " << state.id();
 
   size_t bucket = getBucket(state.id());
   READ_LOCKER(allTransactionsLocker, _allTransactionsLock);
@@ -103,9 +105,13 @@ void TransactionManager::unregisterTransaction(TRI_voc_tid_t transactionId,
 
   WRITE_LOCKER(writeLocker, _transactions[bucket]._lock);
 
-  _transactions[bucket]._activeTransactions.erase(transactionId);
+  size_t numRemoved = _transactions[bucket]._activeTransactions.erase(transactionId);
   if (markAsFailed) {
     _transactions[bucket]._failedTransactions.emplace(transactionId);
+  }
+  if (numRemoved > 0) {
+    LOG_DEVEL << "Unregistering transaction " << transactionId
+              << (markAsFailed ? ": abort" : " commit");
   }
 }
 

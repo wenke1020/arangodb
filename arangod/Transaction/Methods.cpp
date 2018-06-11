@@ -849,8 +849,10 @@ Result transaction::Methods::abort() {
     // first commit transaction on subordinate servers
     Result res = ClusterMethods::abortTransaction(*_state);
     if (res.fail()) {
-      LOG_DEVEL << "failed to abort transaction on subordinates " << res.errorMessage();
-      return res;
+      LOG_DEVEL << "failed to abort transaction on subordinates: " << res.errorMessage();
+      // abort locally anyway
+#warning REMOVE
+      std::this_thread::sleep_for(std::chrono::seconds(10));
     }
   }
 
@@ -1665,7 +1667,7 @@ OperationResult transaction::Methods::insertLocal(
         std::vector<ClusterCommRequest> requests;
         for (auto const& f : *followers) {
           auto headers = std::make_unique<std::unordered_map<std::string, std::string>>();
-          ClusterMethods::transactionHeader(*_state, *headers);
+          //ClusterMethods::transactionHeader(*_state, *headers);
           requests.emplace_back("server:" + f, arangodb::rest::RequestType::POST,
                                 path, body, std::move(headers));
         }

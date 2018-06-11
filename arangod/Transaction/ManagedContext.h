@@ -49,7 +49,7 @@ class ManagedContext final : public Context {
  public:
 
   enum class Type {
-    Single = 0, /// transaction with pre-defined ID
+    Default = 0, /// transaction with pre-defined ID
     Global = 1, /// global transaction with begin / end semantics
     Internal = 2
   };

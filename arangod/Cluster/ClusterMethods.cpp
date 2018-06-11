@@ -196,10 +196,12 @@ ClusterCommRequest beginTransactionRequest(TransactionState& state,
   builder.close(); // </collections>
   builder.close(); // </openObject>
   
-  std::string url = "/_api/transaction/begin";
-  std::unique_ptr<std::unordered_map<std::string, std::string>> headers;
+  const std::string url = "/_db/" + StringUtils::urlEncode(state.vocbase().name()) +
+                          "/_api/transaction/begin";
+  auto headers = std::make_unique<std::unordered_map<std::string, std::string>>();
+  headers->emplace(StaticStrings::ContentTypeHeader, StaticStrings::MimeTypeJson);
   headers->emplace(arangodb::StaticStrings::TransactionId, std::to_string(state.id() + 1));
-  auto body = std::make_shared<std::string>(builder.toJson());
+  auto body = std::make_shared<std::string>(builder.slice().toJson());
   return ClusterCommRequest("server:" + server, RequestType::POST, url, body, std::move(headers));
 }
   
@@ -214,18 +216,22 @@ Result checkTransactionBeginResults(TransactionState const& state,
       return commError;
     }
     
-    if (res.status == CL_COMM_RECEIVED &&
-        res.answer_code == rest::ResponseCode::CREATED) {
-      if (res.answer->payload().isObject()) {
+    if (res.status == CL_COMM_RECEIVED) {
+      VPackSlice answer = res.answer->payload();
+      if (res.answer_code == rest::ResponseCode::CREATED && answer.isObject()) {
         VPackSlice idSlice = res.answer->payload().get(std::vector<std::string>{"result", "id"});
-        if (!idSlice.isString() || StringUtils::uint64(idSlice.copyString()) != state.id() + 1) {
-          LOG_TOPIC(DEBUG, Logger::TRANSACTIONS) << " failed to begin transaction on " << res.endpoint;
-          return TRI_ERROR_TRANSACTION_INTERNAL; // success
+        if (idSlice.isString() && StringUtils::uint64(idSlice.copyString()) == state.id() + 1) {
+          continue; // success
         }
+      } else if (res.answer_code == rest::ResponseCode::BAD && answer.isObject()) {
+        return Result(VelocyPackHelper::readNumericValue(answer, StaticStrings::ErrorNum, TRI_ERROR_TRANSACTION_INTERNAL),
+                      VelocyPackHelper::getStringValue(answer, StaticStrings::ErrorMessage, ""));
       }
+      return TRI_ERROR_TRANSACTION_INTERNAL; // unspecified error
     }
+    LOG_TOPIC(DEBUG, Logger::TRANSACTIONS) << " failed to begin transaction on " << res.endpoint;
   }
-  
+
   return TRI_ERROR_NO_ERROR;
 }
 
@@ -254,6 +260,7 @@ Result beginTransactionCoordinator(TransactionState& state,
       continue;
     }
     state.addServer(leader);
+    LOG_DEVEL << "Begin transaction " << state.id() << " on " << leader;
     requests.emplace_back(beginTransactionRequest(state, leader));
   }
   
@@ -2788,6 +2795,7 @@ arangodb::Result ClusterMethods::beginTransactionOnLeaders(arangodb::Transaction
       continue; // already send a begin transaction there
     }
     state.addServer(leader);
+    LOG_DEVEL << "Begin transaction " << state.id() << " on " << leader;
     requests.emplace_back(beginTransactionRequest(state, leader));
   }
   
@@ -2866,7 +2874,8 @@ Result ClusterMethods::beginTransactionOnFollowers(arangodb::TransactionState& s
 }
   
 namespace {
-  Result commitAbortTransaction(arangodb::TransactionState& state, transaction::Status status) {
+  Result commitAbortTransaction(arangodb::TransactionState& state,
+                                transaction::Status status) {
     TRI_ASSERT(state.isRunning());
     TRI_ASSERT(!state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION));
     if (state.servers().empty()) {
@@ -2879,7 +2888,8 @@ namespace {
       return TRI_ERROR_SHUTTING_DOWN;
     }
     //std::vector<ServerID> DBservers = ci->getCurrentDBServers();
-    std::string url = "/_api/transaction/" + std::to_string(state.id() + 1);
+    const std::string url = "/_db/" + StringUtils::urlEncode(state.vocbase().name()) +
+                            "/_api/transaction/" + std::to_string(state.id() + 1);
     
     RequestType rtype;
     if (status == transaction::Status::COMMITTED) {
@@ -2893,6 +2903,11 @@ namespace {
     std::shared_ptr<std::string> body;
     std::vector<ClusterCommRequest> requests;
     for (std::string const& server : state.servers()) {
+      if (status == transaction::Status::COMMITTED) {
+        LOG_DEVEL << "Commit transaction " << state.id() << " on " << server;
+      } else if (status == transaction::Status::ABORTED) {
+        LOG_DEVEL << "Abort transaction " << state.id() << " on " << server;
+      }
       requests.emplace_back("server:" + server, rtype, url, body);
     }
     
@@ -2907,17 +2922,22 @@ namespace {
       return commError;
     }
     
-    if (result.status == CL_COMM_RECEIVED &&
-        result.answer_code == arangodb::rest::ResponseCode::CREATED) {
-      if (result.answer->payload().isObject()) {
-        VPackSlice idSlice = result.answer->payload().get(std::vector<std::string>{"result", "id"});
+    if (result.status == CL_COMM_RECEIVED) {
+      VPackSlice answer = result.answer->payload();
+      if (result.answer_code == rest::ResponseCode::OK && answer.isObject()) {
+        VPackSlice idSlice = answer.get(std::vector<std::string>{"result", "id"});
         if (idSlice.isString() && basics::StringUtils::uint64(idSlice.copyString()) == state.id() + 1) {
           return TRI_ERROR_NO_ERROR; // success
         }
+      } else if (result.answer_code == rest::ResponseCode::NOT_FOUND) {
+        return Result(TRI_ERROR_TRANSACTION_NOT_FOUND);
+      } else if (result.answer_code == rest::ResponseCode::BAD && answer.isObject()) {
+        return Result(VelocyPackHelper::readNumericValue(answer, StaticStrings::ErrorNum, TRI_ERROR_TRANSACTION_INTERNAL),
+                      VelocyPackHelper::getStringValue(answer, StaticStrings::ErrorMessage, ""));
       }
     }
     
-    return Result(TRI_ERROR_TRANSACTION_INTERNAL, "could not begin transaction");
+    return Result(TRI_ERROR_TRANSACTION_INTERNAL, "could not begin/abort transaction");
   }
 }
 
@@ -2933,11 +2953,13 @@ Result ClusterMethods::abortTransaction(arangodb::TransactionState& state) {
   
 /// @brief set the transaction ID header
 void ClusterMethods::transactionHeader(arangodb::TransactionState& state,
-                                        std::unordered_map<std::string, std::string>& headers) {
+                                       std::unordered_map<std::string, std::string>& headers,
+                                       bool addBegin) {
+  TRI_ASSERT(state.isRunningInCluster());
   std::string value = std::to_string(state.id() + 1);
   // receiving side should just use the provided ID for consistency
-  if (state.hasHint(arangodb::transaction::Hints::Hint::SINGLE_OPERATION)) {
-    value += " single";
+  if (addBegin || state.hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
+    value += " begin";
   }
   headers.emplace(arangodb::StaticStrings::TransactionId, std::move(value));
 }

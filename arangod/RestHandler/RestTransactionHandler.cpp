@@ -167,7 +167,7 @@ void RestTransactionHandler::executeBegin() {
     generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER);
     return;
   }
-  auto fillColls = [](VPackSlice const& slice, std::vector<std::string> cols) {
+  auto fillColls = [](VPackSlice const& slice, std::vector<std::string>& cols) {
     if (slice.isNone()) { // ignore nonexistant keys
       return true;
     } else if (!slice.isArray()) {
@@ -177,7 +177,7 @@ void RestTransactionHandler::executeBegin() {
       if (!val.isString() || val.getStringLength() == 0) {
         return false;
       }
-      cols.emplace_back(val.toString());
+      cols.emplace_back(val.copyString());
     }
     return true;
   };
@@ -190,7 +190,6 @@ void RestTransactionHandler::executeBegin() {
     generateError(rest::ResponseCode::BAD, TRI_ERROR_BAD_PARAMETER);
     return;
   }
-  
 
   // now start our own transaction
   StorageEngine* engine = EngineSelectorFeature::ENGINE;
@@ -199,11 +198,17 @@ void RestTransactionHandler::executeBegin() {
   
   // lock collections
   CollectionNameResolver resolver(_vocbase);
-  if (!ServerState::instance()->isCoordinator()) {
+  //if (!ServerState::instance()->isCoordinator()) {
     auto lockCols = [&](std::vector<std::string> cols, AccessMode::Type mode) {
       for (auto const& cname : cols) {
-        auto cid = resolver.getCollectionIdLocal(cname);
+        TRI_voc_cid_t cid = 0;
+        if (state->isCoordinator()) {
+          cid = resolver.getCollectionIdCluster(cname);
+        } else { // only support local collections / shards
+          cid = resolver.getCollectionIdLocal(cname);
+        }
         if (cid == 0) {
+          LOG_DEVEL << "collection " << cname << " not found";
           return false;
         }
         state->addCollection(cid, cname, mode, 0, false);
@@ -215,7 +220,7 @@ void RestTransactionHandler::executeBegin() {
         !lockCols(readCols, AccessMode::Type::READ)) {
       generateError(rest::ResponseCode::BAD, TRI_ERROR_ARANGO_DATA_SOURCE_NOT_FOUND);
     }
-  }
+  //}
   
   // start the transaction
   transaction::Hints hints;
@@ -259,6 +264,8 @@ void RestTransactionHandler::executeCommit() {
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
   TRI_ASSERT(trx.state()->isRunning());
+  TRI_ASSERT(trx.state()->nestingLevel() == 1);
+  state->decreaseNesting();
   TRI_ASSERT(trx.state()->isTopLevelTransaction());
   state.release(); // top-level transactions are now owned by transaction::Methods
   Result res = trx.commit();
@@ -293,10 +300,13 @@ void RestTransactionHandler::executeAbort() {
   auto ctx = std::make_shared<transaction::ManagedContext>(_vocbase, state.get());
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
-  TRI_ASSERT(trx.state()->status() == transaction::Status::RUNNING);
+  TRI_ASSERT(trx.state()->isRunning());
+  TRI_ASSERT(trx.state()->nestingLevel() == 1);
+  state->decreaseNesting();
   TRI_ASSERT(trx.state()->isTopLevelTransaction());
   state.release(); // top-level transactions are now owned by transaction::Methods
   Result res = trx.abort();
+  TRI_ASSERT(!trx.state()->isRunning());
   
   if (res.fail()) {
     generateError(res);

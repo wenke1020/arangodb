@@ -101,7 +101,7 @@ ArangoTransaction.prototype.begin = function() {
 
 };
 
-ArangoTransaction.prototype.collection(col) {
+ArangoTransaction.prototype.collection = function(col) {
   if (col.isArangoCollection) {
     return new ArangoTransactionCollection(col);
   }

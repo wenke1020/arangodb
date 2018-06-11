@@ -944,9 +944,12 @@ Result EngineInfoContainerDBServer::buildEngines(
     if (res.fail()) {
       return res;
     }
+    // add the transaction ID header
+    ClusterMethods::transactionHeader(*(trx->state()), headers);
+  } else {
+    // add the transaction ID header
+    ClusterMethods::transactionHeader(*(trx->state()), headers, /*addBegin*/ true);
   }
-  // add the transaction ID header
-  ClusterMethods::transactionHeader(*(trx->state()), headers);
 
   for (auto& it : dbServerMapping) {
     std::string const serverDest = "server:" + it.first;

@@ -291,7 +291,8 @@ class ClusterMethods {
   
   /// @brief set the transaction ID header
   static void transactionHeader(arangodb::TransactionState& state,
-                                std::unordered_map<std::string, std::string>& headers);
+                                std::unordered_map<std::string, std::string>& headers,
+                                bool addBegin = false);
 
  private:
 

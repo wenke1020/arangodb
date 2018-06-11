@@ -76,8 +76,8 @@ CollectionNameResolver const& transaction::ManagedContext::resolver() {
 /// @brief get parent transaction (if any) and increase nesting
 TransactionState* transaction::ManagedContext::leaseParentTransaction() {
   if (_state != nullptr) {
-    // no single document transaction should have multiple Method instances
-    TRI_ASSERT(_ctxType != ManagedContext::Type::Single);
+    // single document transaction should never be leased out
+    TRI_ASSERT(!_state->hasHint(Hints::Hint::SINGLE_OPERATION));
     _state->increaseNesting();
     return _state;
   }
@@ -91,14 +91,14 @@ TransactionState* transaction::ManagedContext::leaseParentTransaction() {
     }
     return _state;
   }
-  TRI_ASSERT(_state == nullptr && _ctxType == Type::Single);
+  TRI_ASSERT(_state == nullptr && _ctxType == Type::Default);
   return nullptr;
 }
 
 /// @brief register the transaction, so other Method instances can get it
 void transaction::ManagedContext::registerTransaction(TransactionState* state) {
   TRI_ASSERT(_state == nullptr);
-  TRI_ASSERT(_ctxType == Type::Single || state->hasHint(transaction::Hints::Hint::MANAGED));
+  TRI_ASSERT(_ctxType == Type::Default || state->hasHint(transaction::Hints::Hint::MANAGED));
   TRI_ASSERT(_tid == state->id());
   _state = state;
 }
