@@ -27,7 +27,7 @@
 #include "Basics/WriteLocker.h"
 #include "Logger/Logger.h"
 #include "StorageEngine/TransactionState.h"
-#include "Transaction/ManagedContext.h"
+#include "Transaction/SmartContext.h"
 #include "Transaction/Methods.h"
 
 using namespace arangodb;
@@ -201,7 +201,7 @@ TransactionState* TransactionManager::lookup(
 }
 
 struct GCTransaction final : transaction::Methods {
-  GCTransaction(std::shared_ptr<transaction::ManagedContext> const& ctx,
+  GCTransaction(std::shared_ptr<transaction::SmartContext> const& ctx,
                 transaction::Options const& opts)
       : Methods(ctx, opts) {
     TRI_ASSERT(_state->isEmbeddedTransaction());
@@ -239,7 +239,7 @@ void TransactionManager::garbageCollect() {
   
   /*const TRI_voc_tid_t tid = state->id();
    auto ctx =
-   std::make_shared<transaction::ManagedContext>(state->vocbase(),
+   std::make_shared<transaction::SmartContext>(state->vocbase(),
    state);
    transaction::Options trxOpts;
    GCTransaction trx(ctx, trxOpts);

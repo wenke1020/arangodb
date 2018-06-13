@@ -34,7 +34,7 @@
 #include "Meta/conversion.h"
 #include "Rest/HttpRequest.h"
 #include "Transaction/Methods.h"
-#include "Transaction/ManagedContext.h"
+#include "Transaction/SmartContext.h"
 #include "Transaction/StandaloneContext.h"
 
 #include <velocypack/Builder.h>
@@ -584,11 +584,11 @@ std::shared_ptr<transaction::Context> RestVocbaseBaseHandler::transactionContext
       THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_BAD_PARAMETER, "invalid transaction ID");
     }
     //LOG_DEVEL << "Parsed " << StaticStrings::TransactionId << " " << value;
-    transaction::ManagedContext::Type ctxType = transaction::ManagedContext::Type::Global;
+    transaction::SmartContext::Type ctxType = transaction::SmartContext::Type::Global;
     if (pos > 0 && pos < value.size() && value.substr(pos) == " begin") {
-      ctxType = transaction::ManagedContext::Type::Default;
+      ctxType = transaction::SmartContext::Type::Standalone;
     }
-    return std::make_shared<transaction::ManagedContext>(_vocbase, tid, ctxType);
+    return std::make_shared<transaction::SmartContext>(_vocbase, tid, ctxType);
   }
   return transaction::StandaloneContext::Create(_vocbase);
 }

@@ -463,9 +463,9 @@ SET(ARANGOD_SOURCES
   StorageEngine/WalAccess.cpp
   Transaction/Context.cpp
   Transaction/Helpers.cpp
-  Transaction/ManagedContext.cpp
   Transaction/Methods.cpp
   Transaction/Options.cpp
+  Transaction/SmartContext.cpp
   Transaction/StandaloneContext.cpp
   Transaction/Status.cpp
   Transaction/V8Context.cpp

@@ -20,7 +20,7 @@
 /// @author Simon Grätzer
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "ManagedContext.h"
+#include "SmartContext.h"
 #include "StorageEngine/TransactionState.h"
 #include "StorageEngine/TransactionManager.h"
 #include "StorageEngine/TransactionManagerFeature.h"
@@ -33,22 +33,22 @@ namespace arangodb {
 //static thread_local TRI_voc_tid_t CURRENT_TRX_ID;
 
 /// @brief create the context
-transaction::ManagedContext::ManagedContext(TRI_vocbase_t& vocbase,
+transaction::SmartContext::SmartContext(TRI_vocbase_t& vocbase,
                                             TRI_voc_tid_t tid,
-                                            transaction::ManagedContext::Type ctxType)
+                                            transaction::SmartContext::Type ctxType)
   : Context(vocbase), _tid(tid), _ctxType(ctxType), _state(nullptr) {
   TRI_ASSERT(_tid != 0);
 }
   
 /// @brief create the context, will use given transaction
-transaction::ManagedContext::ManagedContext(TRI_vocbase_t& vocbase, TransactionState* state)
-  : Context(vocbase), _tid(state->id()), _ctxType(ManagedContext::Type::Internal), _state(state) {
+transaction::SmartContext::SmartContext(TRI_vocbase_t& vocbase, TransactionState* state)
+  : Context(vocbase), _tid(state->id()), _ctxType(SmartContext::Type::Internal), _state(state) {
     TRI_ASSERT(_state != nullptr);
     TRI_ASSERT(_state->isTopLevelTransaction());
 }
 
 /// @brief order a custom type handler for the collection
-std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::ManagedContext::orderCustomTypeHandler() {
+std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::SmartContext::orderCustomTypeHandler() {
   if (_customTypeHandler == nullptr) {
     _customTypeHandler.reset(
       transaction::Context::createCustomTypeHandler(&_vocbase, &resolver())
@@ -63,7 +63,7 @@ std::shared_ptr<arangodb::velocypack::CustomTypeHandler> transaction::ManagedCon
 }
 
 /// @brief return the resolver
-CollectionNameResolver const& transaction::ManagedContext::resolver() {
+CollectionNameResolver const& transaction::SmartContext::resolver() {
   if (_resolver == nullptr) {
     createResolver();
   }
@@ -74,14 +74,14 @@ CollectionNameResolver const& transaction::ManagedContext::resolver() {
 }
   
 /// @brief get parent transaction (if any) and increase nesting
-TransactionState* transaction::ManagedContext::leaseParentTransaction() {
+TransactionState* transaction::SmartContext::leaseParentTransaction() {
   if (_state != nullptr) {
     // single document transaction should never be leased out
     TRI_ASSERT(!_state->hasHint(Hints::Hint::SINGLE_OPERATION));
     _state->increaseNesting();
     return _state;
   }
-  if (_ctxType == ManagedContext::Type::Global) {
+  if (_ctxType == SmartContext::Type::Global) {
     TransactionManager* mgr = TransactionManagerFeature::manager();
     TRI_ASSERT(mgr != nullptr);
     // will call increaseNesting() for us
@@ -91,30 +91,30 @@ TransactionState* transaction::ManagedContext::leaseParentTransaction() {
     }
     return _state;
   }
-  TRI_ASSERT(_state == nullptr && _ctxType == Type::Default);
+  TRI_ASSERT(_state == nullptr && _ctxType == Type::Standalone);
   return nullptr;
 }
 
 /// @brief register the transaction, so other Method instances can get it
-void transaction::ManagedContext::registerTransaction(TransactionState* state) {
+void transaction::SmartContext::registerTransaction(TransactionState* state) {
   TRI_ASSERT(_state == nullptr);
-  TRI_ASSERT(_ctxType == Type::Default || state->hasHint(transaction::Hints::Hint::MANAGED));
+  TRI_ASSERT(_ctxType == Type::Standalone || state->hasHint(transaction::Hints::Hint::MANAGED));
   TRI_ASSERT(_tid == state->id());
   _state = state;
 }
   
 /// @brief unregister the transaction
-void transaction::ManagedContext::unregisterTransaction() noexcept {
+void transaction::SmartContext::unregisterTransaction() noexcept {
   _state = nullptr;
 }
   
 /// @brief whether or not the transaction is embeddable
-bool transaction::ManagedContext::isEmbeddable() const {
+bool transaction::SmartContext::isEmbeddable() const {
   //TRI_ASSERT(CURRENT_TRX_ID != 0);
   return true;
 }
   
-TRI_voc_tid_t transaction::ManagedContext::generateId() const {
+TRI_voc_tid_t transaction::SmartContext::generateId() const {
   if (_ctxType == Type::Global || _ctxType == Type::Internal) {
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_TRANSACTION_INTERNAL,
                                    "starting a new transaction is not allowed");

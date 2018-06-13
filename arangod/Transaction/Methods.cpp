@@ -1873,7 +1873,7 @@ OperationResult transaction::Methods::modifyLocal(
         return OperationResult(TRI_ERROR_CLUSTER_SHARD_FOLLOWER_REFUSES_OPERATION);
       }
     }
-  }
+  } // isDBServer - early block
 
   if (options.returnOld || options.returnNew) {
     pinData(cid);  // will throw when it fails
@@ -2180,7 +2180,7 @@ OperationResult transaction::Methods::removeLocal(
         return OperationResult(TRI_ERROR_CLUSTER_SHARD_FOLLOWER_REFUSES_OPERATION);
       }
     }
-  }
+  } // isDBServer - early block
 
   if (options.returnOld) {
     pinData(cid);  // will throw when it fails
@@ -2502,7 +2502,7 @@ OperationResult transaction::Methods::truncateLocal(
         return OperationResult(TRI_ERROR_CLUSTER_SHARD_FOLLOWER_REFUSES_OPERATION);
       }
     }
-  }
+  } // isDBServer - early block
 
   pinData(cid);  // will throw when it fails
 

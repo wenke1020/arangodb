@@ -32,7 +32,7 @@
 #include "StorageEngine/TransactionManager.h"
 #include "StorageEngine/TransactionManagerFeature.h"
 #include "StorageEngine/TransactionState.h"
-#include "Transaction/ManagedContext.h"
+#include "Transaction/SmartContext.h"
 #include "Transaction/Methods.h"
 #include "V8Server/V8Context.h"
 #include "V8Server/V8DealerFeature.h"
@@ -48,7 +48,7 @@ using namespace arangodb::rest;
 
 struct ManagingTransaction final : transaction::Methods {
   
-  ManagingTransaction(std::shared_ptr<transaction::ManagedContext> const& ctx,
+  ManagingTransaction(std::shared_ptr<transaction::SmartContext> const& ctx,
                       transaction::Options const& opts)
   : Methods(ctx, opts) {
     TRI_ASSERT(_state->isEmbeddedTransaction());
@@ -263,7 +263,7 @@ void RestTransactionHandler::executeCommit() {
     return;
   }
   
-  auto ctx = std::make_shared<transaction::ManagedContext>(_vocbase, state.get());
+  auto ctx = std::make_shared<transaction::SmartContext>(_vocbase, state.get());
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
   TRI_ASSERT(trx.state()->isRunning());
@@ -300,7 +300,7 @@ void RestTransactionHandler::executeAbort() {
     return;
   }
   
-  auto ctx = std::make_shared<transaction::ManagedContext>(_vocbase, state.get());
+  auto ctx = std::make_shared<transaction::SmartContext>(_vocbase, state.get());
   transaction::Options trxOpts;
   ManagingTransaction trx(ctx, trxOpts);
   TRI_ASSERT(trx.state()->isRunning());

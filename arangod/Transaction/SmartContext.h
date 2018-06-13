@@ -45,22 +45,22 @@ namespace transaction {
 /// (2) Constructor with TID and Type::Global will try to lease an already existing TransactionState
 ///     from the TransactionManager. This supports global transaction with explicit begin / end requests
 /// (3) Construcor with TransactionState* is used to manage a global transaction
-class ManagedContext final : public Context {
+class SmartContext final : public Context {
  public:
 
   enum class Type {
-    Default = 0, /// transaction with pre-defined ID
+    Standalone = 0, /// transaction with pre-defined ID
     Global = 1, /// global transaction with begin / end semantics
     Internal = 2
   };
   
   /// @brief create the context, with given TID
-  explicit ManagedContext(TRI_vocbase_t& vocbase, TRI_voc_tid_t, Type ctxType);
+  explicit SmartContext(TRI_vocbase_t& vocbase, TRI_voc_tid_t, Type ctxType);
   /// @brief create the context, will use given TransactionState
-  explicit ManagedContext(TRI_vocbase_t& vocbase, TransactionState*);
+  explicit SmartContext(TRI_vocbase_t& vocbase, TransactionState*);
 
   /// @brief destroy the context
-  ~ManagedContext() = default;
+  ~SmartContext() = default;
 
   /// @brief order a custom type handler
   std::shared_ptr<arangodb::velocypack::CustomTypeHandler>
@@ -88,7 +88,7 @@ private:
   /// @brief ID of the transaction to use
   TRI_voc_tid_t const _tid;
   /// @brief is this managing a global context
-  ManagedContext::Type const _ctxType;
+  SmartContext::Type const _ctxType;
   /// @brief managed TransactionState
   TransactionState *_state;
 };
