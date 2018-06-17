@@ -614,6 +614,9 @@ function getServerData(arango) {
           tmp = executeExternalAndWait(
             '/bin/bash', ['-c', 'uname -a | tee /tmp/inspector-uname.out > /dev/null']);
           const uname = fs.readFileSync('/tmp/inspector-uname.out', 'utf8').slice(0,-1);
+          tmp = executeExternalAndWait(
+            '/bin/bash', ['-c', 'cat /etc/*-release | tee /tmp/inspector-release.out > /dev/null']);
+          const release = fs.readFileSync('/tmp/inspector-release.out', 'utf8').slice(0,-1);
           var top;
           if (status.pid !== undefined) {
             tmp = executeExternalAndWait(
@@ -644,7 +647,7 @@ function getServerData(arango) {
           report[server] = {
             version:version, log:log, dmesg:dmesg, statistics:statistics,
             status:status, df:df, uptime:uptime, uname:uname, meminfo:meminfo,
-            local:local, date:date, time:time};
+            local:local, date:date, time:time, release:release};
 
           if (agencyConfig !==  undefined) {
             report[server].config = agencyConfig;
