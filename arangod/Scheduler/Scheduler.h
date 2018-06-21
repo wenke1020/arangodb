@@ -32,11 +32,11 @@
 #include "Basics/socket-utils.h"
 #include "Endpoint/Endpoint.h"
 #include "Scheduler/Job.h"
+#include "Scheduler/JobQueue.h"
 
 namespace arangodb {
 class Acceptor;
 class JobGuard;
-class JobQueue;
 class ListenTask;
 
 namespace velocypack {
@@ -146,8 +146,6 @@ class Scheduler {
   // number of jobs that are currently been posted to the io_context,
   // but where the handler has not yet been called. The number of
   // handler in total is numQueued() + numRunning(_counters)
-  inline uint64_t numQueued() const noexcept { return _nrQueued; };
-
   inline uint64_t getCounters() const noexcept { return _counters; }
 
   static uint64_t numRunning(uint64_t value) noexcept {
@@ -162,12 +160,8 @@ class Scheduler {
     return (value >> 32) & 0xFFFFULL;
   }
 
-  inline void queueJob() noexcept { ++_nrQueued; }
-
-  inline void unqueueJob() noexcept {
-    if (--_nrQueued == UINT64_MAX) {
-      TRI_ASSERT(false);
-    }
+  inline void wakeupJobQueue() noexcept {
+    _jobQueue->wakeup();
   }
 
  private:
@@ -234,8 +228,6 @@ class Scheduler {
   // current counters. refer to the above description of the
   // meaning of its individual bits
   std::atomic<uint64_t> _counters;
-
-  std::atomic<uint64_t> _nrQueued;
 
   std::unique_ptr<JobQueue> _jobQueue;
 

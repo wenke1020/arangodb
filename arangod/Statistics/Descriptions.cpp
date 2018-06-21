@@ -356,7 +356,7 @@ void stats::Descriptions::serverStatistics(velocypack::Builder& b) const {
   ServerStatistics info = ServerStatistics::statistics();
   b.add("uptime", VPackValue(info._uptime));
   b.add("physicalMemory", VPackValue((double)TRI_PhysicalMemory));
-  
+
   V8DealerFeature* dealer =
   application_features::ApplicationServer::getFeature<V8DealerFeature>("V8Dealer");
   if (dealer->isEnabled()) {
@@ -369,14 +369,13 @@ void stats::Descriptions::serverStatistics(velocypack::Builder& b) const {
     b.add( "max", VPackValue(static_cast<int32_t>(v8Counters.max)));
     b.close();
   }
-  
+
   b.add("threads", VPackValue(VPackValueType::Object, true));
-  
+
   auto countersRaw = SchedulerFeature::SCHEDULER->getCounters();
   b.add("running", VPackValue(static_cast<int32_t>(rest::Scheduler::numRunning(countersRaw))));
   b.add("working", VPackValue(static_cast<int32_t>(rest::Scheduler::numWorking(countersRaw))));
   b.add("blocked", VPackValue(static_cast<int32_t>(rest::Scheduler::numBlocked(countersRaw))));
-  b.add("queued", VPackValue(static_cast<int32_t>(SchedulerFeature::SCHEDULER->numQueued())));
   b.close();
 }
 
@@ -405,24 +404,24 @@ void stats::Descriptions::clientStatistics(velocypack::Builder& b) const {
   std::vector<basics::StatisticsCounter> methodRequests;
   basics::StatisticsCounter asyncRequests;
   basics::StatisticsDistribution connectionTime;
-  
+
   // FIXME why are httpConnections in here ?
   ConnectionStatistics::fill(httpConnections, totalRequests, methodRequests,
                              asyncRequests, connectionTime);
-  
+
   b.add("httpConnections", VPackValue((double)httpConnections._count));
   FillDistribution(b, "connectionTime", connectionTime);
-  
+
   basics::StatisticsDistribution totalTime;
   basics::StatisticsDistribution requestTime;
   basics::StatisticsDistribution queueTime;
   basics::StatisticsDistribution ioTime;
   basics::StatisticsDistribution bytesSent;
   basics::StatisticsDistribution bytesReceived;
-  
+
   RequestStatistics::fill(totalTime, requestTime, queueTime, ioTime, bytesSent,
                           bytesReceived);
-  
+
   FillDistribution(b, "totalTime", totalTime);
   FillDistribution(b, "requestTime", requestTime);
   FillDistribution(b, "queueTime", queueTime);
@@ -437,10 +436,10 @@ void stats::Descriptions::httpStatistics(velocypack::Builder& b) const {
   std::vector<basics::StatisticsCounter> methodRequests;
   basics::StatisticsCounter asyncRequests;
   basics::StatisticsDistribution connectionTime;
-  
+
   ConnectionStatistics::fill(httpConnections, totalRequests, methodRequests,
                              asyncRequests, connectionTime);
-  
+
   // request counters
   b.add("requestsTotal", VPackValue((double)totalRequests._count));
   b.add("requestsAsync", VPackValue((double)asyncRequests._count));
@@ -459,11 +458,11 @@ void stats::Descriptions::processStatistics(VPackBuilder& b) const {
   ProcessInfo info = TRI_ProcessInfoSelf();
   double rss = (double)info._residentSize;
   double rssp = 0;
-  
+
   if (TRI_PhysicalMemory != 0) {
     rssp = rss / TRI_PhysicalMemory;
   }
-  
+
   b.add("minorPageFaults", VPackValue((double)info._minorPageFaults));
   b.add("majorPageFaults", VPackValue((double)info._majorPageFaults));
   b.add("userTime", VPackValue((double)info._userTime / (double)info._scClkTck));

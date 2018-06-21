@@ -77,7 +77,7 @@ class JobQueue {
     wakeup();
     return true;
   }
-  
+
 private:
 
   bool pop(Job*& job) {
@@ -89,10 +89,10 @@ private:
 
     return ok;
   }
-  
+
+public:
   void wakeup();
-  void waitForWork();
-  
+
  private:
   int64_t const _maxQueueSize;
   boost::lockfree::queue<Job*> _queue;

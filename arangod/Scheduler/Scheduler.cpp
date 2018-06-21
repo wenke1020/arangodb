@@ -46,7 +46,7 @@ using namespace arangodb;
 using namespace arangodb::basics;
 using namespace arangodb::rest;
 
-namespace {    
+namespace {
 constexpr double MIN_SECONDS = 30.0;
 }
 
@@ -95,12 +95,12 @@ class SchedulerThread : public Thread {
  public:
   void run() override {
     constexpr size_t EVERY_LOOP = size_t(MIN_SECONDS);
-    
-    // when we enter this method, 
+
+    // when we enter this method,
     // _nrRunning has already been increased for this thread
     LOG_TOPIC(DEBUG, Logger::THREADS) << "started thread ("
                                       << _scheduler->infoStatus() << ")";
-  
+
     // some random delay value to avoid all initial threads checking for
     // their deletion at the very same time
     double const randomWait =
@@ -120,7 +120,7 @@ class SchedulerThread : public Thread {
         LOG_TOPIC(ERR, Logger::THREADS)
             << "scheduler loop caught unknown exception";
       }
-          
+
       if (++counter > EVERY_LOOP) {
         counter = 0;
 
@@ -136,8 +136,8 @@ class SchedulerThread : public Thread {
             doDecrement = false;
             break;
           }
-         
-          // use new start time 
+
+          // use new start time
           start = now;
         }
       }
@@ -162,13 +162,12 @@ class SchedulerThread : public Thread {
 // --SECTION--                                                         Scheduler
 // -----------------------------------------------------------------------------
 
-Scheduler::Scheduler(uint64_t nrMinimum, uint64_t /*nrDesired*/, 
+Scheduler::Scheduler(uint64_t nrMinimum, uint64_t /*nrDesired*/,
                      uint64_t nrMaximum, uint64_t maxQueueSize)
     : _maxQueueSize(maxQueueSize),
       _nrMinimum(nrMinimum),
       _nrMaximum(nrMaximum),
       _counters(0),
-      _nrQueued(0),
       _lastAllBusyStamp(0.0) {
   // setup signal handlers
   initializeSignalHandlers();
@@ -176,7 +175,7 @@ Scheduler::Scheduler(uint64_t nrMinimum, uint64_t /*nrDesired*/,
 
 Scheduler::~Scheduler() {
   stopRebalancer();
-  
+
   _managerGuard.reset();
   _managerService.reset();
 
@@ -185,44 +184,32 @@ Scheduler::~Scheduler() {
 }
 
 void Scheduler::post(std::function<void()> callback) {
-  ++_nrQueued;
 
-  try {
-
-    // capture without self, ioContext will not live longer than scheduler
-    _ioContext.get()->post([this, callback]() {
-        --_nrQueued;
-
+  // capture without self, ioContext will not live longer than scheduler
+  _ioContext.get()->post([this, callback]() {
+      {
         JobGuard guard(this);
         guard.work();
 
         callback();
-      });
-  } catch (...) {
-    --_nrQueued;
-    throw;
-  }
+      }
+
+      wakeupJobQueue();
+    });
 }
 
 void Scheduler::post(asio_ns::io_context::strand& strand,
                      std::function<void()> callback) {
-  ++_nrQueued;
-
-  try {
-
-    // capture without self, ioContext will not live longer than scheduler
-    strand.post([this, callback]() {
-        --_nrQueued;
-
+  // capture without self, ioContext will not live longer than scheduler
+  strand.post([this, callback]() {
+      {
         JobGuard guard(this);
         guard.work();
 
         callback();
-      });
-  } catch (...) {
-    --_nrQueued;
-    throw;
-  }
+      }
+      wakeupJobQueue();
+    });
 }
 
 bool Scheduler::start() {
@@ -314,7 +301,7 @@ void Scheduler::startNewThread() {
     THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_FAILED, "unable to start scheduler thread");
   }
 }
-    
+
 void Scheduler::stopThread() {
   MUTEX_LOCKER(locker, _threadCreateLock);
   decRunning();
@@ -326,12 +313,9 @@ void Scheduler::stopThread() {
 bool Scheduler::stopThreadIfTooMany(double now) {
   // make sure no extra threads are created while we check the timestamp
   // and while we modify nrRunning
-  
-  uint64_t const queueCap = std::max(uint64_t(1), uint64_t(_nrMaximum / 4));
-  uint64_t const nrQueued = std::min(_nrQueued.load(), queueCap);
-  
+
   MUTEX_LOCKER(locker, _threadCreateLock);
-  
+
   // fetch all counters in one atomic operation
   uint64_t counters = _counters.load();
   uint64_t const nrRunning = numRunning(counters);
@@ -339,21 +323,21 @@ bool Scheduler::stopThreadIfTooMany(double now) {
   uint64_t const nrWorking = numWorking(counters);
 
   if (nrRunning <= _nrMinimum + nrBlocked) {
-    // don't stop a thread if we already reached the minimum 
+    // don't stop a thread if we already reached the minimum
     // number of threads
     _lastAllBusyStamp = now;
     return false;
   }
 
-  if (nrRunning <= nrWorking + nrQueued) {
+  if (nrRunning <= nrWorking) {
     return false;
   }
-  
+
   if (_lastAllBusyStamp + 1.25 * MIN_SECONDS >= now) {
     // last time all threads were busy is less than x seconds ago
     return false;
   }
-  
+
   // set the all busy stamp. this avoids that we shut down all threads
   // at the same time
   if (_lastAllBusyStamp < now - MIN_SECONDS / 2.0) {
@@ -369,7 +353,7 @@ bool Scheduler::shouldQueueMore() const {
   uint64_t const counters = _counters.load();
   uint64_t const nrWorking = numWorking(counters);
 
-  if (nrWorking + _nrQueued < _nrMaximum) {
+  if (nrWorking < _nrMaximum) {
     return true;
   }
 
@@ -379,14 +363,13 @@ bool Scheduler::shouldQueueMore() const {
 bool Scheduler::shouldExecuteDirect() const {
   uint64_t const counters = _counters.load();
   uint64_t const nrWorking = numWorking(counters);
-  uint64_t const nrBlocked = numBlocked(counters);
-  
-  if (nrWorking + nrBlocked + _nrQueued < numRunning(counters) / 2 + 1) {
+
+  if (nrWorking < _nrMaximum) {
     auto jobQueue = _jobQueue.get();
     auto queueSize = (jobQueue == nullptr) ? 0 : jobQueue->queueSize();
     return queueSize == 0;
   }
-  
+
   return false;
 }
 
@@ -402,8 +385,7 @@ std::string Scheduler::infoStatus() {
   auto queueSize = (jobQueue == nullptr) ? 0 : jobQueue->queueSize();
 
   uint64_t const counters = _counters.load();
-  return "working: " + std::to_string(numWorking(counters)) + ", queued: " +
-         std::to_string(_nrQueued) + ", blocked: " +
+  return "working: " + std::to_string(numWorking(counters)) + ", blocked:: " +
          std::to_string(numBlocked(counters)) + ", running: " +
          std::to_string(numRunning(counters)) + ", outstanding: " +
          std::to_string(queueSize) + ", min/max: " +
@@ -420,14 +402,10 @@ void Scheduler::rebalanceThreads() {
   } else if (count % 5 == 0) {
     LOG_TOPIC(TRACE, Logger::THREADS) << "rebalancing threads: " << infoStatus();
   }
-      
-  uint64_t const queueCap = std::max(uint64_t(1), uint64_t(_nrMaximum / 4));
 
   while (true) {
     {
       double const now = TRI_microtime();
-      
-      uint64_t const nrQueued = std::min(_nrQueued.load(), queueCap);
 
       MUTEX_LOCKER(locker, _threadCreateLock);
 
@@ -436,7 +414,7 @@ void Scheduler::rebalanceThreads() {
       uint64_t const nrWorking = numWorking(counters);
       uint64_t const nrBlocked = numBlocked(counters);
 
-      if (nrRunning >= std::max(_nrMinimum, nrWorking + nrBlocked + nrQueued + 1)) {
+      if (nrRunning >= std::max(_nrMinimum, nrWorking + nrBlocked + 1)) {
         // all threads are working, and none are blocked. so there is no
         // need to start a new thread now
         if (nrWorking == nrRunning) {
@@ -450,12 +428,12 @@ void Scheduler::rebalanceThreads() {
         // reached the maximum now
         break;
       }
-    
+
       if (isStopping(counters)) {
         // do not start any new threads in case we are already shutting down
         break;
       }
-      
+
       // LOG_TOPIC(ERR, Logger::THREADS) << "starting new thread. " << this->infoStatus();
 
       // all threads are maxed out
@@ -489,7 +467,7 @@ void Scheduler::beginShutdown() {
   if (isStopping()) {
     return;
   }
-  
+
   _jobQueue->beginShutdown();
 
   stopRebalancer();
@@ -508,7 +486,7 @@ void Scheduler::beginShutdown() {
 void Scheduler::shutdown() {
   while (true) {
     uint64_t const counters = _counters.load();
-    
+
     if (numRunning(counters) == 0 && numWorking(counters) == 0) {
       break;
     }
@@ -517,7 +495,7 @@ void Scheduler::shutdown() {
     // we can be quite generous here with waiting...
     // as we are in the shutdown already, we do not care if we need to wait for a
     // bit longer
-    std::this_thread::sleep_for(std::chrono::microseconds(20000)); 
+    std::this_thread::sleep_for(std::chrono::microseconds(20000));
   }
 
   _managerService.reset();
@@ -542,4 +520,3 @@ void Scheduler::initializeSignalHandlers() {
   }
 #endif
 }
-

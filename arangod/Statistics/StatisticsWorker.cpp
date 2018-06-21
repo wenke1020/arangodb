@@ -166,7 +166,7 @@ void StatisticsWorker::collectGarbage(std::string const& name,
 
   if (res.fail()) {
     LOG_TOPIC(WARN, Logger::STATISTICS) << "removing outdated statistics failed: " << res.errorMessage();
-  } 
+  }
 }
 
 void StatisticsWorker::historian() {
@@ -745,7 +745,7 @@ void StatisticsWorker::avgPercentDistributon(
     VPackBuilder& builder,
     VPackSlice const& now, VPackSlice const& last,
     VPackBuilder const& cuts) const {
-  
+
   uint32_t n = static_cast<uint32_t>(cuts.slice().length() + 1);
   double count = 0;
   std::vector<double> result(n, 0);
@@ -913,7 +913,6 @@ void StatisticsWorker::generateRawStatistics(VPackBuilder& builder, double const
               VPackValue(rest::Scheduler::numWorking(threadCounters)));
   builder.add("blocked",
               VPackValue(rest::Scheduler::numBlocked(threadCounters)));
-  builder.add("queued", VPackValue(SchedulerFeature::SCHEDULER->numQueued()));
   builder.close();
 
   builder.close();
@@ -1055,7 +1054,7 @@ void StatisticsWorker::run() {
       // compute cluster id just once
       _clusterId = ServerState::instance()->getId();
     }
-    
+
     createCollections();
   } catch (...) {
     // do not fail hard here, as we are inside a thread!

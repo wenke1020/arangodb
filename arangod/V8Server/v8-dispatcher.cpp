@@ -128,8 +128,6 @@ class V8Task : public std::enable_shared_from_this<V8Task> {
   std::chrono::microseconds _interval;
   bool _periodic = false;
 
-  Mutex _queueMutex;
-  bool _queued; 
 };
 
 Mutex V8Task::_tasksLock;
@@ -229,7 +227,7 @@ void V8Task::shutdownTasks() {
 
 void V8Task::removeTasksForDatabase(std::string const& name) {
   MUTEX_LOCKER(guard, _tasksLock);
-    
+
   for (auto it = _tasks.begin(); it != _tasks.end(); /* no hoisting */) {
     if (!(*it).second->databaseMatches(name)) {
       ++it;
@@ -240,7 +238,7 @@ void V8Task::removeTasksForDatabase(std::string const& name) {
     }
   }
 }
-  
+
 bool V8Task::databaseMatches(std::string const& name) const {
   return (_dbGuard->database().name() == name);
 }
@@ -259,8 +257,7 @@ V8Task::V8Task(
       _command(command),
       _allowUseDatabase(allowUseDatabase),
       _offset(0),
-      _interval(0),
-      _queued(false) {}
+      _interval(0) {}
 
 V8Task::~V8Task() { unqueue(); }
 
@@ -291,7 +288,7 @@ V8Task::callbackFunction() {
 
   return [self, this](const asio::error_code& error) {
     unqueue();
-    
+
     // First tell the scheduler that this thread is working:
     JobGuard guard(SchedulerFeature::SCHEDULER);
     guard.work();
@@ -350,7 +347,7 @@ void V8Task::start() {
   TRI_ASSERT(ExecContext::CURRENT == nullptr ||
              ExecContext::CURRENT->isAdminUser() ||
              (!_user.empty() && ExecContext::CURRENT->user() == _user));
-  
+
   _timer.reset(SchedulerFeature::SCHEDULER->newSteadyTimer());
 
   if (_offset.count() <= 0) {
@@ -362,32 +359,11 @@ void V8Task::start() {
 }
 
 void V8Task::queue(std::chrono::microseconds offset) {
-  {
-    MUTEX_LOCKER(locker, _queueMutex);
-    TRI_ASSERT(!_queued);
-    _queued = true; 
-  }
-
-  SchedulerFeature::SCHEDULER->queueJob();
-
   _timer->expires_from_now(offset);
   _timer->async_wait(callbackFunction());
 }
 
 void V8Task::unqueue() noexcept {
-  bool wasQueued;
-
-  {
-    MUTEX_LOCKER(locker, _queueMutex);
-    wasQueued = _queued;
-    if (wasQueued) {
-      _queued = false;
-    }
-  }
-    
-  if (wasQueued && SchedulerFeature::SCHEDULER != nullptr) {
-    SchedulerFeature::SCHEDULER->unqueueJob();
-  }
 }
 
 void V8Task::cancel() {
@@ -552,7 +528,7 @@ static void JS_RegisterTask(v8::FunctionCallbackInfo<v8::Value> const& args) {
   if (args.Length() != 1 || !args[0]->IsObject()) {
     TRI_V8_THROW_EXCEPTION_USAGE("register(<task>)");
   }
-  
+
   TRI_GET_GLOBALS();
 
   ExecContext const* exec = ExecContext::CURRENT;
@@ -617,7 +593,7 @@ static void JS_RegisterTask(v8::FunctionCallbackInfo<v8::Value> const& args) {
   if (obj->HasOwnProperty(TRI_V8_ASCII_STRING(isolate, "runAsUser"))) {
     runAsUser = TRI_ObjectToString(obj->Get(TRI_V8_ASCII_STRING(isolate, "runAsUser")));
   }
-  
+
   // only the superroot is allowed to run tasks as an arbitrary user
   TRI_ASSERT(exec == ExecContext::CURRENT);
   if (exec != nullptr) {
@@ -705,7 +681,7 @@ static void JS_UnregisterTask(v8::FunctionCallbackInfo<v8::Value> const& args) {
   if (args.Length() != 1) {
     TRI_V8_THROW_EXCEPTION_USAGE("unregister(<id>)");
   }
-    
+
   ExecContext const* exec = ExecContext::CURRENT;
   if (exec != nullptr) {
     if (exec->databaseAuthLevel() != auth::Level::RW) {
