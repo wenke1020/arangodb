@@ -46,7 +46,8 @@ const assert = jsunity.jsUnity.assertions;
 /// - TraversalBlock
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO Test skipSome() as well.
+// TODO Test skipSome() as well. Note that as of now, there is no profiling
+// information on skipSome.
 
 // TODO EnumerateCollectionBlock *and* IndexBlock are suboptimal because both
 // abort after iterating over the collection once and return the items fetched
@@ -648,7 +649,7 @@ function ahuacatlProfilerTestSuite () {
 // *NoResultsBlock
 // RemoteBlock
 // *ReturnBlock
-// ShortestPathBlock
+// *ShortestPathBlock
 // *SingletonBlock
 // *SortBlock
 // *SortedCollectBlock

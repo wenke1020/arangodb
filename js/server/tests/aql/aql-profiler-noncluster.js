@@ -306,6 +306,59 @@ function ahuacatlProfilerTestSuite () {
       );
     },
 
+    ////////////////////////////////////////////////////////////////////////////////
+    /// @brief test ShortestPathBlock: simple path test, in all directions
+    ////////////////////////////////////////////////////////////////////////////////
+
+    testShortestPathBlock1 : function () {
+      const col = db._createDocumentCollection(colName);
+      const edgeCol = db._createEdgeCollection(edgeColName);
+      const prepare = (rows) => {
+        profHelper.createSymmetricPath(col, edgeCol, rows);
+      };
+      const queryOutbound = 'FOR v IN OUTBOUND ' +
+        'SHORTEST_PATH @source TO @target @@edgeCol RETURN v';
+      const queryInbound = 'FOR v IN INBOUND ' +
+        'SHORTEST_PATH @source TO @target @@edgeCol RETURN v';
+      const queryAny = 'FOR v IN ANY ' +
+        'SHORTEST_PATH @source TO @target @@edgeCol RETURN v';
+
+      // indices of the first and last node of the path
+      // (depending on its length)
+      const rootNodeId = `${colName}/1`;
+      const lastNodeId = rows => `${colName}/${rows}`;
+
+      // source has index 1, target has `rows`:
+      const bindForward = rows => ({
+        source: rootNodeId,
+        target: lastNodeId(rows),
+        '@edgeCol': edgeColName,
+      });
+      // source has index `rows`, target has 1:
+      const bindBackward = rows => ({
+        source: rootNodeId,
+        target: lastNodeId(rows),
+        '@edgeCol': edgeColName,
+      });
+      const genNodeList = (rows, batches) => {
+        return [
+          { type: SingletonBlock, calls: 1, items: 1 },
+          { type: ShortestPathBlock, calls: batches, items: rows },
+          { type: ReturnBlock, calls: batches, items: rows },
+        ];
+      };
+
+      profHelper.runDefaultChecks(
+        {query: queryOutbound, genNodeList, prepare, bind: bindForward});
+      profHelper.runDefaultChecks(
+        {query: queryInbound, genNodeList, prepare, bind: bindBackward});
+      profHelper.runDefaultChecks(
+        {query: queryAny, genNodeList, prepare, bind: bindForward});
+      profHelper.runDefaultChecks(
+        {query: queryAny, genNodeList, prepare, bind: bindBackward});
+    },
+
+
   };
 }
 

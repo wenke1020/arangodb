@@ -528,6 +528,41 @@ function createBinaryTree (vertexCol, edgeCol, numVertices) {
   );
 }
 
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Fill the passed collections with a symmetric path, i.e.,
+///        create vertices [0, 1, 2, 3, ...] and add edges
+///        [(0, 1), (1, 2), (2, 3), ...
+///        as well as edges
+///        [(1, 0), (2, 1), (3, 2), ...
+///        All existing documents will be deleted in both collections!
+/// @param vertexCol A document ArangoCollection
+/// @param edgeCol An edge ArangoCollection
+/// @param numVertices Number of vertices the path should contain
+////////////////////////////////////////////////////////////////////////////////
+function createSymmetricPath (vertexCol, edgeCol, numVertices) {
+  // clear collections
+  vertexCol.truncate();
+  edgeCol.truncate();
+
+  // add vertices
+  vertexCol.insert(_.range(1, numVertices + 1).map((i) => ({_key: ""+i})));
+
+  // create a balanced binary tree on edgeCol
+  edgeCol.insert(
+    // for every v._key from col, except the last (highest index) vertex
+    _.range(1, numVertices)
+    // calculate edges from v to its "successor" v+1 in both directions
+    .map(i => [{from: i, to: i+1}, {from: i+1, to: i}])
+    // flatten
+    .reduce((accum, cur) => accum.concat(cur), [])
+    // create actual edge documents
+    .map(e => ({
+        _from: `${colName}/${e.from}`,
+        _to: `${colName}/${e.to}`,
+    }))
+  );
+}
+
 
 
 exports.colName = colName;
@@ -606,3 +641,4 @@ exports.assertStatsNodesMatchPlanNodes = assertStatsNodesMatchPlanNodes;
 exports.assertNodesItemsAndCalls = assertNodesItemsAndCalls;
 exports.runDefaultChecks = runDefaultChecks;
 exports.createBinaryTree = createBinaryTree;
+exports.createSymmetricPath = createSymmetricPath;
