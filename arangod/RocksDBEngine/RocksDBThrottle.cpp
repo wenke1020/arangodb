@@ -56,7 +56,7 @@ namespace arangodb {
 /// To get full performance benefit of this code, the server needs three settings:
 ///
 ///  1. /etc/pam.d/login must contain the line "auth	   require    pam_cap.so"
-///  2. /etc/security/capability.conf must contain "cap_sys_nice      arangodb"
+///  2. /etc/security/capability.conf must contain "cap_sys_nice      arangodb" (not at end of file)
 ///  3. root must execute this command "setcap cap_sys_nice+ie arangod" on
 ///      the arangodb binary executable
 ///
@@ -226,20 +226,19 @@ void RocksDBThrottle::SetThrottleWriteRate(std::chrono::microseconds Micros,
       SetThrottle();
     } // if
   } // mutex
-#if 1
+
   // had a period of zero Bytes and that shoved thottle super low, ignore those.
   //  example:  SetThrottleWriteRate: Micros 0, Keys 0, Bytes 0, IsLevel0 0
   if (nullptr != _internalRocksDB && 0 != Bytes && 10<ComputeBacklog()) {
     LOG_TOPIC(DEBUG, arangodb::Logger::ENGINES) << "forcing RecalculateThrottle()";
     try {
-      RecalculateThrottle();
+      RecalculateThrottle(false);
     } catch (...) {
       LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "RecalculateThrottle() sent a throw. RocksDB?";
     } // try/catchxs
 
     SetThrottle();
   } // if
-#endif
 
   LOG_TOPIC(DEBUG, arangodb::Logger::ENGINES)
     << "SetThrottleWriteRate: Micros " << Micros.count()
@@ -269,11 +268,11 @@ void RocksDBThrottle::ThreadLoop() {
     // start actual throttle work
     //
     try {
-      RecalculateThrottle();
+      RecalculateThrottle(true);
     } catch (...) {
       LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "RecalculateThrottle() sent a throw. RocksDB?";
       _threadRunning.store(false);
-    } // try/catchxs
+    } // try/catch
 
     ++_replaceIdx;
     if (THROTTLE_INTERVALS==_replaceIdx)
@@ -298,7 +297,7 @@ void RocksDBThrottle::ThreadLoop() {
 //
 // Routine to actually perform the throttle calculation,
 //  now is external routing from ThreadLoop() to easy unit test
-void RocksDBThrottle::RecalculateThrottle() {
+void RocksDBThrottle::RecalculateThrottle(bool clearAccumulator) {
   unsigned loop;
   std::chrono::microseconds tot_micros;
   uint64_t tot_bytes, tot_keys, tot_compact, adjustment_bytes;
@@ -317,7 +316,10 @@ void RocksDBThrottle::RecalculateThrottle() {
     MUTEX_LOCKER(mutexLocker, _threadMutex);
 
     _throttleData[_replaceIdx]=_throttleData[1];
-    memset(&_throttleData[1], 0, sizeof(_throttleData[1]));
+
+    if (clearAccumulator) {
+      memset(&_throttleData[1], 0, sizeof(_throttleData[1]));
+    } // if
 
     // this could be faster by keeping running totals and
     //  subtracting [_replaceIdx] before copying [0] into it,
@@ -376,17 +378,12 @@ void RocksDBThrottle::RecalculateThrottle() {
     //   old is less than THROTTLE_SCALING)
     if (!_firstThrottle) {
       temp_rate=_throttleBps;
-#if 1
+
       if (temp_rate < new_throttle)
         temp_rate+=(new_throttle - temp_rate)/THROTTLE_SCALING +1;
       else
         temp_rate-=(temp_rate - new_throttle)/THROTTLE_SCALING +2;
-#else
-      if (temp_rate < new_throttle)
-        temp_rate+=(new_throttle - temp_rate)/17 +1;
-      else
-        temp_rate-=(temp_rate - new_throttle)/7 +2;
-#endif
+
       // +2 can make this go negative
       if (temp_rate<1)
         temp_rate=1;   // throttle must always have an effect

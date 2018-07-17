@@ -104,7 +104,7 @@ protected:
 
   int64_t ComputeBacklog();
 
-  void RecalculateThrottle();
+  void RecalculateThrottle(bool clearAccumulator);
 
 
   // I am unable to figure out static initialization of std::chrono::seconds,
