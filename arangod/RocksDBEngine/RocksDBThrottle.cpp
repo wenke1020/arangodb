@@ -206,24 +206,40 @@ void RocksDBThrottle::Startup(rocksdb::DB* db) {
 void RocksDBThrottle::SetThrottleWriteRate(std::chrono::microseconds Micros,
                                                 uint64_t Keys, uint64_t Bytes, bool IsLevel0) {
   // lock _threadMutex while we update _throttleData
-  MUTEX_LOCKER(mutexLocker, _threadMutex);
-  unsigned target_idx;
+  {
+    MUTEX_LOCKER(mutexLocker, _threadMutex);
+    unsigned target_idx;
 
-  // throw out anything smaller than 32Mbytes ... be better if this
-  //  was calculated against write_buffer_size, but that varies by column family
-  if ((64<<19)<Bytes) {
-    // index 0 for level 0 compactions, index 1 for all others
-    target_idx = (IsLevel0 ? 0 : 1);
+    // throw out anything smaller than 32Mbytes ... be better if this
+    //  was calculated against write_buffer_size, but that varies by column family
+    if ((64<<19)<Bytes) {
+      // index 0 for level 0 compactions, index 1 for all others
+      target_idx = (IsLevel0 ? 0 : 1);
 
-    _throttleData[target_idx]._micros+=Micros;
-    _throttleData[target_idx]._keys+=Keys;
-    _throttleData[target_idx]._bytes+=Bytes;
-    _throttleData[target_idx]._compactions+=1;
+      _throttleData[target_idx]._micros+=Micros;
+      _throttleData[target_idx]._keys+=Keys;
+      _throttleData[target_idx]._bytes+=Bytes;
+      _throttleData[target_idx]._compactions+=1;
 
-    // attempt to override throttle changes by rocksdb ... hammer this often
-    //  (note that _threadMutex IS HELD)
+      // attempt to override throttle changes by rocksdb ... hammer this often
+      //  (note that _threadMutex IS HELD)
+      SetThrottle();
+    } // if
+  } // mutex
+#if 1
+  // had a period of zero Bytes and that shoved thottle super low, ignore those.
+  //  example:  SetThrottleWriteRate: Micros 0, Keys 0, Bytes 0, IsLevel0 0
+  if (nullptr != _internalRocksDB && 0 != Bytes && 10<ComputeBacklog()) {
+    LOG_TOPIC(DEBUG, arangodb::Logger::ENGINES) << "forcing RecalculateThrottle()";
+    try {
+      RecalculateThrottle();
+    } catch (...) {
+      LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "RecalculateThrottle() sent a throw. RocksDB?";
+    } // try/catchxs
+
     SetThrottle();
   } // if
+#endif
 
   LOG_TOPIC(DEBUG, arangodb::Logger::ENGINES)
     << "SetThrottleWriteRate: Micros " << Micros.count()
@@ -360,12 +376,17 @@ void RocksDBThrottle::RecalculateThrottle() {
     //   old is less than THROTTLE_SCALING)
     if (!_firstThrottle) {
       temp_rate=_throttleBps;
-
+#if 1
       if (temp_rate < new_throttle)
         temp_rate+=(new_throttle - temp_rate)/THROTTLE_SCALING +1;
       else
         temp_rate-=(temp_rate - new_throttle)/THROTTLE_SCALING +2;
-
+#else
+      if (temp_rate < new_throttle)
+        temp_rate+=(new_throttle - temp_rate)/17 +1;
+      else
+        temp_rate-=(temp_rate - new_throttle)/7 +2;
+#endif
       // +2 can make this go negative
       if (temp_rate<1)
         temp_rate=1;   // throttle must always have an effect
@@ -450,7 +471,7 @@ int64_t RocksDBThrottle::ComputeBacklog() {
   int64_t compaction_backlog, imm_backlog, imm_trigger;
   bool ret_flag;
   std::string ret_string, property_name;
-  int temp;
+  int temp, temp1, temp2;
 
   // want count of level 0 files to estimate if compactions "behind"
   //  and therefore likely to start stalling / stopping
@@ -462,6 +483,7 @@ int64_t RocksDBThrottle::ComputeBacklog() {
     imm_trigger = 3;
   } // else
 
+  int loop(0);
   // loop through column families to obtain family specific counts
   for (auto & cf : _families) {
     property_name = rocksdb::DB::Properties::kNumFilesAtLevelPrefix;
@@ -472,7 +494,7 @@ int64_t RocksDBThrottle::ComputeBacklog() {
     } else {
       temp =0;
     } // else
-
+    temp1 = temp;
     if (kL0_SlowdownWritesTrigger<=temp) {
       temp -= (kL0_SlowdownWritesTrigger -1);
     } else {
@@ -480,14 +502,27 @@ int64_t RocksDBThrottle::ComputeBacklog() {
     } // else
 
     compaction_backlog += temp;
-
+#if 1
+    temp2 = temp;
     property_name=rocksdb::DB::Properties::kNumImmutableMemTable;
     ret_flag=_internalRocksDB->GetProperty(cf, property_name, &ret_string);
-
+    temp=0;
     if (ret_flag) {
       temp=std::stoi(ret_string);
       imm_backlog += temp;
     } // if
+#endif
+#if 1
+    property_name=rocksdb::DB::Properties::kEstimatePendingCompactionBytes;
+    uint64_t value(0);
+    _internalRocksDB->GetIntProperty(cf, property_name, &value);
+    LOG_TOPIC(DEBUG, arangodb::Logger::ENGINES) << "ComputeBacklog(): Pending bytes " << value
+                                                << ", level-0 files " << temp1
+                                                << ", backlog " << temp2
+                                                << ", imm " << temp
+                                                << ", loop " << loop;
+#endif
+    ++loop;
   } // for
 
   if (imm_trigger<imm_backlog) {
