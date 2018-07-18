@@ -998,7 +998,7 @@ Result RocksDBCollection::replace(transaction::Methods* trx,
     return res;
   }
 
-  if (_isDBServer) {
+  if (false && _isDBServer) {
     // Need to check that no sharding keys have changed:
     if (arangodb::shardKeysChanged(
           _logicalCollection.vocbase().name(),
