@@ -625,7 +625,7 @@ Result RocksDBVPackIndex::insertInternal(transaction::Methods* trx,
 
   // now we are going to construct the value to insert into rocksdb
   // unique indexes have a different key structure
-  RocksDBValue value = _unique ? RocksDBValue::UniqueVPackIndexValue(documentId.id())
+  RocksDBValue value = _unique ? RocksDBValue::UniqueVPackIndexValue(documentId)
                                : RocksDBValue::VPackIndexValue();
 
   size_t const count = elements.size();
@@ -673,7 +673,7 @@ Result RocksDBVPackIndex::insertInternal(transaction::Methods* trx,
   }
 
   if (res == TRI_ERROR_ARANGO_UNIQUE_CONSTRAINT_VIOLATED) {
-    LocalDocumentId rev(RocksDBValue::revisionId(existing));
+    LocalDocumentId rev = RocksDBValue::documentId(existing);
     ManagedDocumentResult mmdr;
     bool success = _collection->getPhysical()->readDocument(trx, rev, mmdr);
     TRI_ASSERT(success);
@@ -740,7 +740,7 @@ Result RocksDBVPackIndex::updateInternal(transaction::Methods* trx,
       return IndexResult(res, this);
     }
 
-    RocksDBValue value = RocksDBValue::UniqueVPackIndexValue(newDocumentId.id());
+    RocksDBValue value = RocksDBValue::UniqueVPackIndexValue(newDocumentId);
     size_t const count = elements.size();
     for (size_t i = 0; i < count; ++i) {
       RocksDBKey& key = elements[i];
