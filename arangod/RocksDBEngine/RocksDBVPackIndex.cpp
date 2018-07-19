@@ -113,7 +113,7 @@ bool RocksDBVPackUniqueIndexIterator::next(LocalDocumentIdCallback const& cb, si
   arangodb::Result r = mthds->Get(_index->columnFamily(), _key.ref(), value.buffer());
 
   if (r.ok()) {
-    cb(LocalDocumentId(RocksDBValue::revisionId(*value.buffer())));
+    cb(RocksDBValue::documentId(*value.buffer()));
   }
 
   // there is at most one element, so we are done now
@@ -135,7 +135,7 @@ bool RocksDBVPackUniqueIndexIterator::nextCovering(DocumentCallback const& cb, s
   arangodb::Result r = mthds->Get(_index->columnFamily(), _key.ref(), value.buffer());
 
   if (r.ok()) {
-    cb(LocalDocumentId(RocksDBValue::revisionId(*value.buffer())), RocksDBKey::indexedVPack(_key.ref()));
+    cb(LocalDocumentId(RocksDBValue::documentId(*value.buffer())), RocksDBKey::indexedVPack(_key.ref()));
   }
 
   // there is at most one element, so we are done now
@@ -204,12 +204,10 @@ bool RocksDBVPackIndexIterator::next(LocalDocumentIdCallback const& cb, size_t l
   while (limit > 0) {
     TRI_ASSERT(_index->objectId() == RocksDBKey::objectId(_iterator->key()));
 
-    LocalDocumentId const documentId(
-        _index->_unique
-            ? RocksDBValue::revisionId(_iterator->value())
-            : RocksDBKey::revisionId(_bounds.type(), _iterator->key()));
-    cb(documentId);
-
+    cb(_index->_unique
+           ? RocksDBValue::documentId(_iterator->value())
+           : RocksDBKey::indexDocumentId(_bounds.type(), _iterator->key()));
+    
     --limit;
     if (_reverse) {
       _iterator->Prev();
@@ -240,8 +238,8 @@ bool RocksDBVPackIndexIterator::nextCovering(DocumentCallback const& cb, size_t 
 
     LocalDocumentId const documentId(
         _index->_unique
-            ? RocksDBValue::revisionId(_iterator->value())
-            : RocksDBKey::revisionId(_bounds.type(), _iterator->key()));
+            ? RocksDBValue::documentId(_iterator->value())
+            : RocksDBKey::indexDocumentId(_bounds.type(), _iterator->key()));
     cb(documentId, RocksDBKey::indexedVPack(_iterator->key()));
 
     --limit;

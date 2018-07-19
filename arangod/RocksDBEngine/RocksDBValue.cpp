@@ -89,19 +89,20 @@ LocalDocumentId RocksDBValue::documentId(std::string const& s) {
   return documentId(s.data(), s.size());
 }
 
-bool RocksDBValue::revisionId(rocksdb::Slice const& slice, TRI_voc_rid_t& id){
-  if(slice.size() == sizeof(LocalDocumentId::BaseType) + sizeof(TRI_voc_rid_t)){
+bool RocksDBValue::revisionId(rocksdb::Slice const& slice, TRI_voc_rid_t& id) {
+  if (slice.size() == sizeof(LocalDocumentId::BaseType) + sizeof(TRI_voc_rid_t)) {
     id = rocksutils::uint64FromPersistent(slice.data() + sizeof(LocalDocumentId::BaseType));
     return true;
   }
   return false;
 }
 
-TRI_voc_rid_t RocksDBValue::revisionId(rocksdb::Slice const& slice){
+TRI_voc_rid_t RocksDBValue::revisionId(rocksdb::Slice const& slice) {
   TRI_voc_rid_t id;
-  if(revisionId(slice, id)){
+  if (revisionId(slice, id)) {
     return id;
   }
+  TRI_ASSERT(false);
   THROW_ARANGO_EXCEPTION_MESSAGE(TRI_ERROR_INTERNAL,"Could not receive revisionId from rocksdb::Slice");
 }
 

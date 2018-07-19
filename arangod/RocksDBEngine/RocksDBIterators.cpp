@@ -97,10 +97,7 @@ bool RocksDBAllIndexIterator::next(LocalDocumentIdCallback const& cb, size_t lim
     TRI_ASSERT(_bounds.objectId() == RocksDBKey::objectId(_iterator->key()));
 #endif
 
-    TRI_voc_rid_t revisionId =
-        RocksDBKey::revisionId(RocksDBEntryType::Document, _iterator->key());
-    cb(LocalDocumentId(revisionId));
-
+    cb(RocksDBKey::documentId(_iterator->key()));
     --limit;
     if (_reverse) {
       _iterator->Prev();
@@ -128,8 +125,8 @@ bool RocksDBAllIndexIterator::nextDocument(
   }
 
   while (limit > 0) {
-    TRI_voc_rid_t documentId = RocksDBKey::revisionId(RocksDBEntryType::Document, _iterator->key());
-    cb(LocalDocumentId(documentId), VPackSlice(_iterator->value().data()));
+    cb(RocksDBKey::documentId(_iterator->key()),
+       VPackSlice(_iterator->value().data()));
     --limit;
 
     if (_reverse) {
@@ -224,9 +221,7 @@ bool RocksDBAnyIndexIterator::next(LocalDocumentIdCallback const& cb, size_t lim
   }
 
   while (limit > 0) {
-    TRI_voc_rid_t revisionId =
-        RocksDBKey::revisionId(RocksDBEntryType::Document, _iterator->key());
-    cb(LocalDocumentId(revisionId));
+    cb(RocksDBKey::documentId(_iterator->key()));
     --limit;
     _returned++;
     _iterator->Next();
@@ -253,8 +248,8 @@ bool RocksDBAnyIndexIterator::nextDocument(
   }
 
   while (limit > 0) {
-    TRI_voc_rid_t documentId = RocksDBKey::revisionId(RocksDBEntryType::Document, _iterator->key());
-    cb(LocalDocumentId(documentId), VPackSlice(_iterator->value().data()));
+    cb(RocksDBKey::documentId(_iterator->key()),
+       VPackSlice(_iterator->value().data()));
     --limit;
     _returned++;
     _iterator->Next();
@@ -314,9 +309,7 @@ bool RocksDBSortedAllIterator::next(LocalDocumentIdCallback const& cb, size_t li
   }
 
   while (limit > 0) {
-    LocalDocumentId documentId(RocksDBValue::revisionId(_iterator->value()));
-    cb(documentId);
-
+    cb(RocksDBValue::documentId(_iterator->value()));
     --limit;
 
     _iterator->Next();
