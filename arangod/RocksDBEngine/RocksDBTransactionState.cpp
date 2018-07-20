@@ -161,7 +161,7 @@ Result RocksDBTransactionState::beginTransaction(transaction::Hints hints) {
       // inconsistencies. 
       // TODO: enable this optimization once these circumstances are clear
       // and fully covered by tests
-      if (false && isExclusiveTransactionOnSingleCollection()) {
+      if (hasHint(transaction::Hints::Hint::UNTRACKED) && isExclusiveTransactionOnSingleCollection()) {
         _rocksMethods.reset(new RocksDBTrxUntrackedMethods(this));
       } else {
         _rocksMethods.reset(new RocksDBTrxMethods(this));
@@ -189,6 +189,10 @@ void RocksDBTransactionState::createTransaction() {
              _rocksTransaction->GetState() == rocksdb::Transaction::COMMITED ||
              _rocksTransaction->GetState() == rocksdb::Transaction::ROLLEDBACK);
   _rocksTransaction = db->BeginTransaction(_rocksWriteOptions, trxOpts, _rocksTransaction);
+      
+  if (hasHint(transaction::Hints::Hint::NO_INDEXING)) {
+    _rocksTransaction->DisableIndexing();
+  }
   
   // add transaction begin marker
   if (!hasHint(transaction::Hints::Hint::SINGLE_OPERATION)) {
