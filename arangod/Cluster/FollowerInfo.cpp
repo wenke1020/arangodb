@@ -173,6 +173,9 @@ void FollowerInfo::add(ServerID const& sid) {
   if (!success) {
     LOG_TOPIC(ERR, Logger::CLUSTER)
         << "FollowerInfo::add, timeout in agency operation for key " << path;
+  } else {
+    LOG_TOPIC(WARN, Logger::REPLICATION)
+        << "Adding in sync follower " << sid << " for collection: " << _docColl->name();
   }
 }
 

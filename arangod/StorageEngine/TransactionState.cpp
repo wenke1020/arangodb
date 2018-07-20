@@ -54,6 +54,13 @@ TransactionState::TransactionState(TRI_vocbase_t* vocbase,
 TransactionState::~TransactionState() {
   TRI_ASSERT(_status != transaction::Status::RUNNING);
 
+  if (_type == AccessMode::Type::EXCLUSIVE) {
+    LOG_TOPIC(ERR, arangodb::Logger::REPLICATION) << "Releasing Exclusive Lock for:";
+    for (auto const& it : _collections) {
+      LOG_TOPIC(ERR, arangodb::Logger::REPLICATION) << "-> " << it->collectionName();
+    }
+  }
+
   releaseCollections();
 
   // free all collections
@@ -212,6 +219,15 @@ int TransactionState::unuseCollections(int nestingLevel) {
 }
 
 int TransactionState::lockCollections() {
+
+  if (_type == AccessMode::Type::EXCLUSIVE) {
+    LOG_TOPIC(ERR, arangodb::Logger::REPLICATION) << "Locking with Exclusive Lock for:";
+    for (auto const& it : _collections) {
+      LOG_TOPIC(ERR, arangodb::Logger::REPLICATION) << "-> " << it->collectionName();
+    }
+  }
+
+
   for (auto& trxCollection : _collections) {
     int res = trxCollection->lockRecursive();
 
