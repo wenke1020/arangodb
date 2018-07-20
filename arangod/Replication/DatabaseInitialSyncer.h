@@ -55,17 +55,20 @@ arangodb::Result syncChunkRocksDB(DatabaseInitialSyncer& syncer, SingleCollectio
                                   std::vector<std::pair<std::string, uint64_t>> const& markers);
   */
 class DatabaseInitialSyncer : public InitialSyncer {
-  friend ::arangodb::Result handleSyncKeysMMFiles(DatabaseInitialSyncer& syncer, arangodb::LogicalCollection* col,
-                                                              std::string const& keysId);
+  friend ::arangodb::Result handleSyncKeysMMFiles(DatabaseInitialSyncer& syncer, 
+                                                  arangodb::LogicalCollection* col,
+                                                  std::string const& keysId);
   
-  friend ::arangodb::Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer, arangodb::LogicalCollection* col,
-                                                              std::string const& keysId);
+  friend ::arangodb::Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer, 
+                                                  arangodb::LogicalCollection* col,
+                                                  std::string const& keysId);
   
   friend ::arangodb::Result syncChunkRocksDB(DatabaseInitialSyncer& syncer, SingleCollectionTransaction* trx,
-                                           std::string const& keysId, uint64_t chunkId,
-                                           std::string const& lowString,
-                                           std::string const& highString,
-                                           std::vector<std::pair<std::string, uint64_t>> const& markers);
+                                             IncrementalSyncStats& stats,
+                                             std::string const& keysId, uint64_t chunkId,
+                                             std::string const& lowString,
+                                             std::string const& highString,
+                                             std::vector<std::pair<std::string, uint64_t>> const& markers);
 
  private:
   /// @brief apply phases

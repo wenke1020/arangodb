@@ -221,25 +221,20 @@ RocksDBReplicationResult RocksDBReplicationContext::dump(
     return RocksDBReplicationResult(TRI_ERROR_BAD_PARAMETER, "the replication context iterator has not been initialized", _lastTick);
   }
 
-  // set type
+  // reserve chunkSize plus some overhead for JSON packaging
+  buff.reserve(std::min(size_t(chunkSize * 1.10), size_t(10 * 1000 * 1000)));
+
   arangodb::basics::VPackStringBufferAdapter adapter(buff.stringBuffer());
 
-  VPackBuilder builder(&_vpackOptions);
+  auto cb = [&adapter, &buff, this](rocksdb::Slice const& rocksKey, rocksdb::Slice const& rocksValue) {
+    buff.appendText("{\"type\":");
+    buff.appendInteger(REPLICATION_MARKER_DOCUMENT); // set type
+    buff.appendText(",\"data\":");
 
-  auto cb = [&builder, &adapter, &buff, this](rocksdb::Slice const& rocksKey, rocksdb::Slice const& rocksValue) {
-    builder.clear();
-    builder.openObject();
-    builder.add("type", VPackValue(REPLICATION_MARKER_DOCUMENT));
-    builder.add(VPackValue("data"));
-    builder.add(velocypack::Slice(rocksValue.data()));
-    builder.close();
-
-    // note: we need the CustomTypeHandler here
-    VPackDumper dumper(&adapter,
-        &_vpackOptions);
-    VPackSlice slice = builder.slice();
-    dumper.dump(slice);
-    buff.appendChar('\n');
+    // printing the data, note: we need the CustomTypeHandler here
+    VPackDumper dumper(&adapter, &_vpackOptions);
+    dumper.dump(velocypack::Slice(rocksValue.data()));
+    buff.appendText("}\n", 2);
   };
   
   TRI_ASSERT(_iter);
@@ -255,7 +250,7 @@ RocksDBReplicationResult RocksDBReplicationContext::dump(
       return ex;
     }
   }
-  
+
   if (_hasMore) {
     _currentTick++;
   }

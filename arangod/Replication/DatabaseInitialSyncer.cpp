@@ -340,6 +340,8 @@ Result DatabaseInitialSyncer::applyCollectionDump(transaction::Methods& trx,
 Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* coll,
                                                    std::string const& leaderColl,
                                                    TRI_voc_tick_t maxTick) {
+  DumpStats stats;
+
   std::string appendix;
 
   if (_hasFlushed) {
@@ -397,6 +399,10 @@ Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* 
     if (batch == 1) {
       headers["X-Arango-Async"] = "store";
     }
+
+    ++stats.numDumpRequests;
+    double t = TRI_microtime();
+
     std::unique_ptr<SimpleHttpResult> response(_client->retryRequest(
         rest::RequestType::GET, url, nullptr, 0, headers));
 
@@ -463,6 +469,9 @@ Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* 
       // fallthrough here in case everything went well
     }
     
+    double httpWaitTime = TRI_microtime() - t;
+    stats.waitedForDump += httpWaitTime;
+    
     if (hasFailed(response.get())) {
       return buildHttpError(response.get(), url);
     }
@@ -499,13 +508,15 @@ Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* 
         checkMore = false;
       }
     }
-    
+
     SingleCollectionTransaction trx(
         transaction::StandaloneContext::Create(vocbase()), coll->cid(),
         AccessMode::Type::EXCLUSIVE);
 
     trx.addHint(
         transaction::Hints::Hint::RECOVERY);  // to turn off waitForSync!
+    trx.addHint(transaction::Hints::Hint::UNTRACKED);
+    trx.addHint(transaction::Hints::Hint::NO_INDEXING);
 
     Result res = trx.begin();
 
@@ -515,19 +526,26 @@ Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* 
 
     trx.pinData(coll->cid());  // will throw when it fails
 
+    t = TRI_microtime();
+
     res = applyCollectionDump(trx, coll, response.get(), markersProcessed);
     if (res.fail()) {
       return res;
     }
 
     res = trx.commit();
+
+    double applyTime = TRI_microtime() - t;
+    stats.waitedForApply += applyTime;
     
     std::string const progress2 =
         "fetched master collection dump for collection '" + coll->name() +
         "', type: " + typeString + ", id " + leaderColl + ", batch " +
         StringUtils::itoa(batch) +
         ", markers processed: " + StringUtils::itoa(markersProcessed) +
-        ", bytes received: " + StringUtils::itoa(bytesReceived);
+        ", bytes received: " + StringUtils::itoa(bytesReceived) + 
+        ", http wait time: " + std::to_string(httpWaitTime) + " s" +
+        ", apply time: " + std::to_string(applyTime) + " s";
 
     setProgress(progress2);
 
@@ -537,6 +555,16 @@ Result DatabaseInitialSyncer::handleCollectionDump(arangodb::LogicalCollection* 
 
     if (!checkMore || fromTick == 0) {
       // done
+      std::string const progress2 =
+        "finished initial dump for collection '" + coll->name() +
+        "', type: " + typeString + ", id " + leaderColl +
+        ", markers processed: " + StringUtils::itoa(markersProcessed) +
+        ", bytes received: " + StringUtils::itoa(bytesReceived) + 
+        ", dump requests: " + std::to_string(stats.numDumpRequests) + 
+        ", waited for dump: " + std::to_string(stats.waitedForDump) + " s" +
+        ", apply time: " + std::to_string(stats.waitedForApply) + " s";
+
+      setProgress(progress2);
       return Result();
     }
 

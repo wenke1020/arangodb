@@ -43,8 +43,10 @@
 #include <velocypack/velocypack-aliases.h>
 
 namespace arangodb {
+
 Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
     SingleCollectionTransaction* trx,
+    IncrementalSyncStats& stats,
     std::string const& keysId, uint64_t chunkId, std::string const& lowString,
     std::string const& highString,
     std::vector<std::pair<std::string, uint64_t>> const& markers) {
@@ -78,8 +80,12 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
       "fetching keys chunk " + std::to_string(chunkId) + " from " + url;
   syncer.setProgress(progress);
 
+  double t = TRI_microtime();
+  ++stats.numKeysRequests;
   std::unique_ptr<httpclient::SimpleHttpResult> response(
       syncer._client->retryRequest(rest::RequestType::PUT, url, nullptr, 0, syncer.createHeaders()));
+
+  stats.waitedForKeys += TRI_microtime() - t;
 
   if (response == nullptr || !response->isComplete()) {
     return Result(TRI_ERROR_REPLICATION_NO_RESPONSE, std::string("could not connect to master at ") + syncer._masterInfo._endpoint + ": " + syncer._client->getErrorMessage());
@@ -151,6 +157,7 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
         keyBuilder->close();
 
         trx->remove(collectionName, keyBuilder->slice(), options);
+        ++stats.numDocsRemoved;
 
         ++nextStart;
       } else if (res == 0) {
@@ -203,6 +210,7 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
       keyBuilder->close();
 
       trx->remove(collectionName, keyBuilder->slice(), options);
+      ++stats.numDocsRemoved;
     }
     ++nextStart;
   }
@@ -214,6 +222,9 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
 
   syncer.sendExtendBatch();
   syncer.sendExtendBarrier();
+
+  ++stats.numDocsRequests;
+  stats.numDocsRequested += toFetch.size();
 
   LOG_TOPIC(TRACE, Logger::REPLICATION) << "will refetch " << toFetch.size()
                                         << " documents for this chunk";
@@ -239,10 +250,14 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
                " (" + std::to_string(toFetch.size()) + " keys) for collection '" + collectionName + "' from " + url;
     syncer.setProgress(progress);
 
+    double t = TRI_microtime();
+
     std::unique_ptr<httpclient::SimpleHttpResult> response(
         syncer._client->retryRequest(rest::RequestType::PUT, url,
                                      keyJsonString.c_str(),
                                      keyJsonString.size(), syncer.createHeaders()));
+
+    stats.waitedForDocs += TRI_microtime() - t;
 
     if (response == nullptr || !response->isComplete()) {
       return Result(TRI_ERROR_REPLICATION_NO_RESPONSE, std::string("could not connect to master at ") + syncer._masterInfo._endpoint + ": " + syncer._client->getErrorMessage());
@@ -343,6 +358,7 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
           }
         }
       }
+      ++stats.numDocsInserted;
     }
 
     if (foundLength >= toFetch.size()) {
@@ -359,6 +375,9 @@ Result syncChunkRocksDB(DatabaseInitialSyncer& syncer,
 Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
                              arangodb::LogicalCollection* col,
                              std::string const& keysId) {
+                             
+  IncrementalSyncStats stats;
+  
   std::string progress =
       "collecting local keys for collection '" + col->name() + "'";
   syncer.setProgress(progress);
@@ -379,8 +398,13 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
              "' from " + url;
   syncer.setProgress(progress);
   auto const headers = syncer.createHeaders();
+
+  double t = TRI_microtime();
+
   std::unique_ptr<httpclient::SimpleHttpResult> response(
       syncer._client->retryRequest(rest::RequestType::GET, url, nullptr, 0, headers));
+  
+  stats.waitedForInitial += TRI_microtime() - t;
 
   if (response == nullptr || !response->isComplete()) {
     return Result(TRI_ERROR_REPLICATION_NO_RESPONSE, std::string("could not connect to master at ") + syncer._masterInfo._endpoint + ": " + syncer._client->getErrorMessage());
@@ -481,6 +505,8 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
 
     trx.addHint(
         transaction::Hints::Hint::RECOVERY);  // to turn off waitForSync!
+    trx.addHint(transaction::Hints::Hint::UNTRACKED);
+    trx.addHint(transaction::Hints::Hint::NO_INDEXING);
 
     Result res = trx.begin();
 
@@ -542,8 +568,8 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
       ,&markers,&localHash,&hashString
       ,&syncer, &currentChunkId
       ,&numChunks, &keysId, &resetChunk, &compareChunk
-      ,&lowKey,&highKey]
-      (std::string const& docKey, std::uint64_t docRev){
+      ,&lowKey,&highKey, &stats]
+      (std::string const& docKey, std::uint64_t docRev) {
       
       bool rangeUnequal = false;
       bool nextChunk = false;
@@ -591,7 +617,7 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
       TRI_ASSERT(!rangeUnequal || nextChunk);  // A => B
       if (nextChunk) {  // we are out of range, see next chunk
         if (rangeUnequal && currentChunkId < numChunks) {
-          Result res = syncChunkRocksDB(syncer, &trx, keysId, currentChunkId,
+          Result res = syncChunkRocksDB(syncer, &trx, stats, keysId, currentChunkId,
                                         lowKey, highKey, markers);
           if (!res.ok()) {
             THROW_ARANGO_EXCEPTION(res);
@@ -630,7 +656,7 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
 
     // we might have missed chunks, if the keys don't exist at all locally
     while (currentChunkId < numChunks) {
-      Result res = syncChunkRocksDB(syncer, &trx, keysId, currentChunkId, lowKey,
+      Result res = syncChunkRocksDB(syncer, &trx, stats, keysId, currentChunkId, lowKey,
                                     highKey, markers);
       if (!res.ok()) {
         THROW_ARANGO_EXCEPTION(res);
@@ -645,6 +671,20 @@ Result handleSyncKeysRocksDB(DatabaseInitialSyncer& syncer,
     if (!res.ok()) {
       return res;
     }
+  }
+
+  {
+    std::string progress =
+        std::string("incremental sync statistics: ") + 
+        "keys requests: " + std::to_string(stats.numKeysRequests) + ", " +
+        "docs requests: " + std::to_string(stats.numDocsRequests) + ", " +
+        "number of documents requested: " + std::to_string(stats.numDocsRequested) + ", " +
+        "number of documents inserted: " + std::to_string(stats.numDocsInserted) + ", " +
+        "number of documents removed: " + std::to_string(stats.numDocsRemoved) + ", " +
+        "waited for initial: " + std::to_string(stats.waitedForInitial) + " s, " +
+        "waited for keys: " + std::to_string(stats.waitedForKeys) + " s, " +
+        "waited for docs: " + std::to_string(stats.waitedForDocs) + " s";
+    syncer.setProgress(progress);
   }
 
   return Result();
