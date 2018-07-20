@@ -39,6 +39,7 @@
 #include "RocksDBEngine/RocksDBKeyBounds.h"
 #include "RocksDBEngine/RocksDBVPackIndex.h"
 #include "RocksDBEngine/RocksDBValue.h"
+#include "Transaction/Helpers.h"
 #include "StorageEngine/EngineSelectorFeature.h"
 #include "VocBase/ticks.h"
 
@@ -641,13 +642,12 @@ class WBReader final : public rocksdb::WriteBatch::Handler {
     updateMaxTick(column_family_id, key, value);
     if (shouldHandleDocument(column_family_id, key)) {
       uint64_t objectId = RocksDBKey::objectId(key);
-      LocalDocumentId docId = RocksDBKey::documentId(key);
 
       auto const& it = deltas.find(objectId);
       if (it != deltas.end()) {
         it->second._sequenceNum = currentSeqNum;
         it->second._added++;
-        it->second._revisionId = docId.id();
+        it->second._revisionId = transaction::helpers::extractRevFromDocument(RocksDBValue::data(value));
       }
     } else {
       // We have to adjust the estimate with an insert
@@ -676,13 +676,11 @@ class WBReader final : public rocksdb::WriteBatch::Handler {
                            const rocksdb::Slice& key) override {
     if (shouldHandleDocument(column_family_id, key)) {
       uint64_t objectId = RocksDBKey::objectId(key);
-      LocalDocumentId docId = RocksDBKey::documentId(key);
 
       auto const& it = deltas.find(objectId);
       if (it != deltas.end()) {
         it->second._sequenceNum = currentSeqNum;
         it->second._removed++;
-        it->second._revisionId = docId.id();
       }
     } else {
       // We have to adjust the estimate with an remove
