@@ -40,14 +40,16 @@ function iResearchAqlTestSuite () {
   var v;
 
   return {
-    setUp : function () {
+    setUp: function () {
       db._drop("UnitTestsCollection");
       c = db._create("UnitTestsCollection");
 
       db._drop("AnotherUnitTestsCollection");
       var ac = db._create("AnotherUnitTestsCollection");
 
-      db._dropView("UnitTestsView");
+      if (db._view("UnitTestsView") !== null)
+        db._dropView("UnitTestsView");
+
       v = db._createView("UnitTestsView", "arangosearch", {});
       var meta = { properties: {
         links: { 
@@ -82,9 +84,9 @@ function iResearchAqlTestSuite () {
       c.save({ _key: "foo", xyz: 1 });
     },
 
-    tearDown : function () {
-      var meta = { properties: { links : { "UnitTestsCollection": null } } };
-      v.properties(meta);
+    tearDown: function () {
+      //var meta = { properties: { links : { "UnitTestsCollection": null } } };
+      //v.properties(meta);
       v.drop();
       db._drop("UnitTestsCollection");
       db._drop("AnotherUnitTestsCollection");
