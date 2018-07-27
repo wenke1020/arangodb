@@ -40,17 +40,19 @@ One or multiple _Agents_ form the _Agency_ in an ArangoDB Cluster. The
 _Agency_ is the central place to store the configuration in a Cluster. It
 performs leader elections and provides other synchronization services for
 the whole Cluster. Without the _Agency_ none of the other components can
-operate.
+operate. If at any time any instance of the cluster cannot access the agency, operation will seize on that individual instance.
 
 While generally invisible to the outside the _Agency_ is the heart of the
 Cluster. As such, fault tolerance is of course a must have for the
 _Agency_. To achieve that the _Agents_ are using the [Raft Consensus
 Algorithm](https://raft.github.io/). The algorithm formally guarantees
-conflict free configuration management within the ArangoDB Cluster.
+conflict free configuration management within the ArangoDB Cluster. This protocol does not scale, but if coded correctly, guarantees one and only one truth at all times across all cluster nodes.
 
 At its core the _Agency_ manages a big configuration tree. It supports
 transactional read and write operations on this tree, and other servers
 can subscribe to HTTP callbacks for all changes to the tree.
+
+From the agency the coordinators and db servers draw their knowledge of how the cluster is configured and thus how they are to interact to form the cluster.
 
 ### Coordinators
 

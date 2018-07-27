@@ -67,7 +67,6 @@ arangod --server.endpoint tcp://0.0.0.0:5003 \
 	--agency.supervision true \
 	--database.directory agent3 &
 ```
-
 ### DBServers and Coordinators
 
 These two roles share a common set of relevant options. First you should specify
@@ -136,8 +135,7 @@ via the HTTP API by calling `http://server-address/_admin/server/id`.
 You have now launched an ArangoDB Cluster and can contact its _Coordinators_ (and
 their corresponding web UI) at the endpoint `tcp://127.0.0.1:7001` and `tcp://127.0.0.1:7002`.
 
-Multiple Machines
------------------
+## Manual deploymnet on Multiple Machines
 
 The method from the previous paragraph can be extended to a more real production scenario,
 to start an ArangoDB Cluster on multiple machines. The only changes are that one
@@ -153,7 +151,6 @@ and 3 _Coordinators_ on three different machines with IP addresses:
 192.168.1.2
 192.168.1.3
 ```
-
 Let's also suppose that each of the above machines runs an _Agent_, a _DBServer_
 and a _Coordinator_
 
@@ -317,8 +314,11 @@ arangod --server.authentication=false \
 	--database.directory coordinator &
 ```
 
-Manual Start in Docker
-----------------------
+Note, that the agents advertise their "outside" IP addresses with --agency.my-address while the coordinators and db servers do the same using --cluster.my-address. This is necessary for arangodb to use the correct network device to intercommunicate. While every process might be listening on many more devices via --server.endpoint.
+
+The above list is obviously meant for maximum flexibility and could be deployed on x number of servers. Please be reminded that 5 agents are already considered big while the number of db servers and coordinators should grow with the necessities of your application.
+
+## Manual Start in Docker
 
 Manually starting a Cluster via Docker is basically the same as described in the 
 paragraphs above. 
@@ -332,8 +332,21 @@ facilitate Dockers port forwarding using the `-p` command line option. Be sure t
 check the [official Docker documentation](https://docs.docker.com/engine/reference/run/).
 
 You can simply use the `-p` flag in Docker to make the individual processes available on the host
-machine or you could use Docker's [links](https://docs.docker.com/engine/reference/run/)
+machine:
+
+```
+docker run -p 8529:8529 -e ARANGO_NO_AUTH=1 arangodb
+``` 
+Or you could use Docker's [links](https://docs.docker.com/engine/reference/run/)
 to enable process intercommunication.
+
+### Docker and Cluster tasks
+
+To start the cluster via Docker is basically the same as starting [locally](Local.md) or on [multiple machines](Distributed.md). However just like with the single networking image we will face networking issues. You can simply use the -p flag to make the individual task available on the host machine or you could use Docker's [links](https://docs.docker.com/engine/reference/run/) to enable task intercommunication.
+
+Please note that there are some flags that specify how ArangoDB can
+reach a task from the outside. These are very important and built for
+this exact usecase.
 
 An example configuration might look like this:
 
