@@ -23,7 +23,7 @@ Multiple Machines
 If you want to start a Cluster using the _Starter_, you can use the following command:
 
 ```
-arangodb --starter.data-dir=./data --starter.join A,B,C
+arangodb --starter.data-dir=./data --server.storage-engine rocksdb --starter.join A,B,C
 ```
 By invoking the first `arangodb` you launch a primary node. It will bind a network port, and output the commands you need to cut'n'paste into the other nodes.
 
@@ -33,13 +33,6 @@ Once all the processes started by the _Starter_ are up and running, and joined t
 Cluster (this may take a while depending on your system), the _Starter_ will inform
 you where to connect the Cluster from a Browser, shell or your program.
 At this point you may access your cluster at either coordinator endpoint. 
-
-Please note that without specifying the storage engine, your _Cluster_ will use _MMFiles_ as default storage engine. We suggest to use _RocksDB_ as storage engine, this can achieved by adding the following option to the _Starter_ command line:
-
-```
---server.storage-engine rocksdb
-```
-For a comparison between _MMFiles_ and _RocksDB_ please refer to this [page](https://www.arangodb.com/why-arangodb/comparing-rocksdb-mmfiles-storage-engines/)
 
 For a full list of options of the _Starter_ please refer to [this](../../Programs/Starter/Options.md)
 section.
