@@ -38,7 +38,6 @@ Please note that without specifying the storage engine, your _Cluster_ will use 
 
 ```
 --server.storage-engine rocksdb
-
 ```
 For a comparison between _MMFiles_ and _RocksDB_ please refer to this [page](https://www.arangodb.com/why-arangodb/comparing-rocksdb-mmfiles-storage-engines/)
 
@@ -67,6 +66,7 @@ docker run -it --name=adb1 --rm -p 8528:8528 \
     -v /var/run/docker.sock:/var/run/docker.sock \
     arangodb/arangodb-starter \
     --starter.address=172.17.0.1 \
+	--starter.join=A,B,C
 ```
 It will start the master instance, and command you to start the slave instances:
 
@@ -93,7 +93,7 @@ docker volume create arangodb3 && \
     -v /var/run/docker.sock:/var/run/docker.sock arangodb/arangodb-starter:latest \
     --starter.address=172.17.0.1 --starter.join=172.17.0.1
 ```
-Run the above command on machines B & C.
+Run the above command on machines A, B & C.
 
 Once you start the other instances, it will continue like this:
 
