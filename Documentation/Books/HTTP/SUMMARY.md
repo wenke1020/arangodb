@@ -1,8 +1,12 @@
 
 # Summary
+
 * [Introduction](README.md)
 * [General HTTP Handling](General/README.md)
 * [HTTP Interface](Api/README.md)
+
+## DATA MODELING
+
 * [Databases](Database/README.md)
   * [To-Endpoint](Database/DatabaseEndpoint.md)
   * [Management](Database/DatabaseManagement.md)
@@ -17,24 +21,6 @@
 * [Edges](Edge/README.md)
   * [Address and Etag](Edge/AddressAndEtag.md)
   * [Working with Edges](Edge/WorkingWithEdges.md)
-* [General Graph](Gharial/README.md)
-  * [Management](Gharial/Management.md)
-  * [Vertices](Gharial/Vertices.md)
-  * [Edges](Gharial/Edges.md)
-* [Traversals](Traversal/README.md)
-* [AQL Query Cursors](AqlQueryCursor/README.md)
-  * [Query Results](AqlQueryCursor/QueryResults.md)
-  * [Accessing Cursors](AqlQueryCursor/AccessingCursors.md)
-* [AQL Queries](AqlQuery/README.md)
-* [AQL Query Cache](AqlQueryCache/README.md)
-* [AQL User Functions Management](AqlUserFunctions/README.md)
-* [Simple Queries](SimpleQuery/README.md)
-* [Async Result Handling](AsyncResultsManagement/README.md)
-* [Bulk Import / Export](BulkImports/README.md)
-  * [JSON Documents](BulkImports/ImportingSelfContained.md)
-  * [Headers & Values](BulkImports/ImportingHeadersAndValues.md)
-  * [Batch Requests](BatchRequest/README.md)
-  * [Exporting data](Export/README.md)
 * [Indexes](Indexes/README.md)
   * [Working with Indexes](Indexes/WorkingWith.md)
   * [Hash](Indexes/Hash.md)
@@ -49,24 +35,54 @@
   * [Retrieving](Views/Getting.md)
   * [ArangoSearch Views](Views/ArangoSearch.md)
 * [Transactions](Transaction/README.md)
+
+## GRAPHS
+
+* [General Graph](Gharial/README.md)
+  * [Management](Gharial/Management.md)
+  * [Vertices](Gharial/Vertices.md)
+  * [Edges](Gharial/Edges.md)
+* [Traversals](Traversal/README.md)
+
+## AQL & QUERIES
+
+* [AQL Query Cursors](AqlQueryCursor/README.md)
+  * [Query Results](AqlQueryCursor/QueryResults.md)
+  * [Accessing Cursors](AqlQueryCursor/AccessingCursors.md)
+* [AQL Queries](AqlQuery/README.md)
+* [AQL Query Cache](AqlQueryCache/README.md)
+* [AQL User Functions Management](AqlUserFunctions/README.md)
+* [Simple Queries](SimpleQuery/README.md)
+* [Async Result Handling](AsyncResultsManagement/README.md)
+
+## OPERATIONS
+
+* [Bulk Import / Export](BulkImports/README.md)
+  * [JSON Documents](BulkImports/ImportingSelfContained.md)
+  * [Headers & Values](BulkImports/ImportingHeadersAndValues.md)
+  * [Batch Requests](BatchRequest/README.md)
+  * [Exporting data](Export/README.md)
+* [Administration & Monitoring](AdministrationAndMonitoring/README.md)
+* [User Management](UserManagement/README.md)
 * [Replication](Replications/README.md)
   * [Replication Dump](Replications/ReplicationDump.md)
   * [Replication Logger](Replications/ReplicationLogger.md)
   * [Replication Applier](Replications/ReplicationApplier.md)
   * [Other Replication Commands](Replications/OtherReplication.md)
-* [Administration & Monitoring](AdministrationAndMonitoring/README.md)
-* [Endpoints](Endpoints/README.md)
-* [Foxx Services](Foxx/README.md)
-  * [Management](Foxx/Management.md)
-  * [Configuration](Foxx/Configuration.md)
-  * [Miscellaneous](Foxx/Miscellaneous.md)
-* [User Management](UserManagement/README.md)
-* [Tasks](Tasks/README.md)
 * [Cluster](Cluster/README.md)
   * [Server ID](Cluster/ServerId.md)
   * [Server Role](Cluster/ServerRole.md)
   * [Cluster Statistics](Cluster/Statistics.md)
   * [Cluster Health](Cluster/Health.md)
   * [Agency](Agency/README.md)
+
+## OTHER
+
+* [Endpoints](Endpoints/README.md)
+* [Foxx Services](Foxx/README.md)
+  * [Management](Foxx/Management.md)
+  * [Configuration](Foxx/Configuration.md)
+  * [Miscellaneous](Foxx/Miscellaneous.md)
+* [Tasks](Tasks/README.md)
 * [Miscellaneous functions](MiscellaneousFunctions/README.md)
 * [Repair Jobs](Repairs/README.md)
