@@ -121,6 +121,15 @@ bool RestDocumentHandler::insertDocument() {
   opOptions.returnOld = _request->parsedValue(StaticStrings::ReturnOldString, false) && opOptions.overwrite;
   extractStringParameter(StaticStrings::IsSynchronousReplicationString,
                          opOptions.isSynchronousReplicationFrom);
+  double startTime = TRI_microtime();
+  auto TimePrintung = [&]() {
+    if (!opOptions.isSynchronousReplicationFrom.empty()) {
+      double now = TRI_microtime();
+      if (now - startTime >= 0.5) {
+        LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "Replication took: " << (now - startTime) << "s"; 
+      }
+    }
+  };
 
   // find and load collection given by name or identifier
   auto trx = createTransaction(collectionName, AccessMode::Type::WRITE);
