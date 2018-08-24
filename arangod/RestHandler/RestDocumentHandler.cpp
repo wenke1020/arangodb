@@ -128,7 +128,7 @@ bool RestDocumentHandler::insertDocument() {
       LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "RestHandlerExecution took: " << (now - startTime) << "s"; 
     }
   };
-  TRI_DEFER(TimePrintung);
+  TRI_DEFER(TimePrintung());
 
   // find and load collection given by name or identifier
   auto trx = createTransaction(collectionName, AccessMode::Type::WRITE);
