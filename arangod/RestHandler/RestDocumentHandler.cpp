@@ -130,6 +130,7 @@ bool RestDocumentHandler::insertDocument() {
       }
     }
   };
+  TRI_DEFER(TimePrintung);
 
   // find and load collection given by name or identifier
   auto trx = createTransaction(collectionName, AccessMode::Type::WRITE);
