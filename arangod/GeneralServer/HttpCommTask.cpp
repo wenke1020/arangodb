@@ -102,10 +102,10 @@ void HttpCommTask::addResponse(GeneralResponse& baseResponse,
   HttpResponse& response = static_cast<HttpResponse&>(baseResponse);
 #endif
 
-  finishExecution(baseResponse);
-  resetKeepAlive();
+finishExecution(baseResponse);
+resetKeepAlive();
 
-  // response has been queued, allow further requests
+// response has been queued, allow further requests
   _requestPending = false;
 
   // CORS response handling
@@ -172,6 +172,10 @@ void HttpCommTask::addResponse(GeneralResponse& baseResponse,
 
   // append write buffer and statistics
   double const totalTime = RequestStatistics::ELAPSED_SINCE_READ_START(stat);
+  if (totalTime > 0.4) {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "Request took long: " << Logger::FIXED(totalTime, 6) << " on  " << _fullUrl;
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << stat.timingsCsv();
+  }
 
   if (stat != nullptr && arangodb::Logger::isEnabled(arangodb::LogLevel::TRACE,
                                                      Logger::REQUESTS)) {
