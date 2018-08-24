@@ -123,11 +123,9 @@ bool RestDocumentHandler::insertDocument() {
                          opOptions.isSynchronousReplicationFrom);
   double startTime = TRI_microtime();
   auto TimePrintung = [&]() {
-    if (!opOptions.isSynchronousReplicationFrom.empty()) {
-      double now = TRI_microtime();
-      if (now - startTime >= 0.3) {
-        LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "Replication took: " << (now - startTime) << "s"; 
-      }
+    double now = TRI_microtime();
+    if (now - startTime >= 0.3) {
+      LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "RestHandlerExecution took: " << (now - startTime) << "s"; 
     }
   };
   TRI_DEFER(TimePrintung);
