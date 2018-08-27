@@ -151,7 +151,9 @@ Status DBImpl::GetSortedWalFiles(VectorLogPtr& files) {
     InstrumentedMutexLock l(&mutex_);
     while (disable_delete_obsolete_files_ > 0 &&
            pending_purge_obsolete_files_ > 0) {
+      std::cout << "Waiting on bg_cv in GetSortedWalFiles" << (void*)this << std::endl;
       bg_cv_.Wait();
+      std::cout << "Waking up " << (void*)this << std::endl;
     }
   }
   return wal_manager_.GetSortedWalFiles(files);

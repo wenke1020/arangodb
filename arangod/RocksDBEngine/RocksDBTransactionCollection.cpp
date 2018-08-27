@@ -372,6 +372,7 @@ int RocksDBTransactionCollection::doLock(AccessMode::Type type,
                                          int nestingLevel) {
   if (!AccessMode::isWriteOrExclusive(type)) {
     _lockType = type;
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "ReadLocking: " << _collection->name();
     return TRI_ERROR_NO_ERROR;
   }
   
@@ -405,10 +406,12 @@ int RocksDBTransactionCollection::doLock(AccessMode::Type type,
   LOG_TRX(_transaction, nestingLevel) << "write-locking collection " << _cid;
   int res;
   if (AccessMode::isExclusive(type)) {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "ExclusiveLocking: " << _collection->name();
     // exclusive locking means we'll be acquiring the collection's RW lock in
     // write mode
     res = physical->lockWrite(timeout);
   } else {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "WriteLocking: " << _collection->name();
     // write locking means we'll be acquiring the collection's RW lock in read
     // mode
     res = physical->lockRead(timeout);
@@ -435,6 +438,7 @@ int RocksDBTransactionCollection::doUnlock(AccessMode::Type type,
                                            int nestingLevel) {
   if (!AccessMode::isWriteOrExclusive(type) ||
       !AccessMode::isWriteOrExclusive(_lockType)) {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "ReadUnlocking: " << _collection->name();
     _lockType = AccessMode::Type::NONE;
     return TRI_ERROR_NO_ERROR;
   }
@@ -481,10 +485,12 @@ int RocksDBTransactionCollection::doUnlock(AccessMode::Type type,
 
   LOG_TRX(_transaction, nestingLevel) << "write-unlocking collection " << _cid;
   if (AccessMode::isExclusive(type)) {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "ExclusiveUnlocking: " << _collection->name();
     // exclusive locking means we'll be releasing the collection's RW lock in
     // write mode
     physical->unlockWrite();
   } else {
+    LOG_TOPIC(ERR, arangodb::Logger::FIXME) << "WriteUnlocking: " << _collection->name();
     // write locking means we'll be releasing the collection's RW lock in read
     // mode
     physical->unlockRead();
