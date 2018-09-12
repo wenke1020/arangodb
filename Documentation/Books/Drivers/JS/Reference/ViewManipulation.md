@@ -10,7 +10,7 @@ These functions implement the
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Checks whether the view exists.
@@ -30,7 +30,7 @@ const result = await view.exists();
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Retrieves general information about the view.
@@ -50,7 +50,7 @@ const data = await view.get();
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Retrieves the view's properties.
@@ -70,7 +70,7 @@ const data = await view.properties();
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Creates a view with the given _properties_ for this view's name,
@@ -80,8 +80,8 @@ then returns the server response.
 
 - **properties**: `Object` (optional)
 
-  For more information on the _properties_ object, see
-  [the HTTP API documentation for creating views](../../..//HTTP/Views/ArangoSearch.html).
+  For more information on the _properties_ object, see the
+  [HTTP API documentation for creating views](../../..//HTTP/Views/ArangoSearch.html).
 
 **Examples**
 
@@ -98,7 +98,7 @@ await view.create();
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Updates the properties of the view.
@@ -107,8 +107,8 @@ Updates the properties of the view.
 
 - **properties**: `Object`
 
-  For information on the _properties_ argument see
-  [the HTTP API for modifying views](../../..//HTTP/Views/ArangoSearch.html).
+  For information on the _properties_ argument see the
+  [HTTP API for modifying views](../../..//HTTP/Views/ArangoSearch.html).
 
 **Examples**
 
@@ -125,7 +125,7 @@ assert.equal(result.consolidationIntervalMsec, 123);
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Replaces the properties of the view.
@@ -134,8 +134,8 @@ Replaces the properties of the view.
 
 - **properties**: `Object`
 
-  For information on the _properties_ argument see
-  [the HTTP API for modifying views](../../..//HTTP/Views/ArangoSearch.html).
+  For information on the _properties_ argument see the
+  [HTTP API for modifying views](../../..//HTTP/Views/ArangoSearch.html).
 
 **Examples**
 
@@ -152,7 +152,7 @@ assert.equal(result.consolidationIntervalMsec, 234);
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Renames the view. The _View_ instance will automatically update its
@@ -175,7 +175,7 @@ assert.equal(view.name, result.name);
 
 {% hint 'info' %}
 This method is only available when targeting ArangoDB 3.4 or later,
-see [Compatibility](../../GettingStarted/README.md#compatibility).
+see [Compatibility](../GettingStarted/README.md#compatibility).
 {% endhint %}
 
 Deletes the view from the database.
