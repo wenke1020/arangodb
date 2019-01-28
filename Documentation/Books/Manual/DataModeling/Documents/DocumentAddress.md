@@ -133,8 +133,7 @@ conditionally query, update, replace or delete documents in the database. In
 order to find a particular revision of a document, you need the document
 handle or key, and the document revision.
 
-{% include '../../includes/DocumentRevisionWarning.md.inc' %}
-
+@startDocuBlock documentRevisionWarning
 
 Multiple Documents in a single Command
 --------------------------------------
