@@ -1,4 +1,6 @@
+@startDocuBlock documentRevisionWarning
 @brief Old document revisions are not accessible by the user
+
 {% hint 'warning' %}
 When an existing document is updated or replaced, ArangoDB will write a new
 version of this document to the write-ahead logfile, regardless of the
@@ -20,3 +22,5 @@ This is to avoid ever-growing disk usage.
 Therefore, from a user perspective, there is just **one single document revision
 present per different `_key` at every point in time**.
 {% endhint %}
+
+@endDocuBlock
