@@ -1,5 +1,4 @@
 @startDocuBlock documentRevisionWarning
-@brief Old document revisions are not accessible by the user
 
 {% hint 'warning' %}
 When an existing document is updated or replaced, ArangoDB will write a new
