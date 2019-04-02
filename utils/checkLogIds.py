@@ -184,8 +184,9 @@ def generate_ids_main(check_only, project_root, directories_to_include, director
                     status = handle_file(fullpath, project_root, id_database, operation)
 
                 if not is_good(status):
+                    print("Id check FAILED!")
                     return status
-
+    print("Found {} unique Ids. Id check SUCCESSFUL!".format(len(id_database)))
     return 0
 
 if __name__ == "__main__":
