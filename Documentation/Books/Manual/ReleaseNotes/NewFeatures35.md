@@ -429,12 +429,7 @@ format.
 
 This can be fixed adjusting any existing log message parsers and making them aware
 of the ID values. The ID values are always 5 byte strings, consisting of the characters
-`[0-9a-f]`. ID values are placed directly behind the log level (e.g. `INFO`) for
-general log messages that do not contain a log topic, and directly behind the log
-topic for messages that contain a topic, e.g. 
-
-    2019-03-25T21:23:19Z [8144] INFO [cf3f4] ArangoDB (version 3.5.0 enterprise [linux]) is ready for business. Have fun!.
-    2019-03-25T21:23:16Z [8144] INFO {authentication} [3844e] Authentication is turned on (system only), authentication for unix sockets is turned on
+`[0-9a-f]`. ID values are placed directly behind the log level (e.g. `INFO`).
 
 Alternatively, the log IDs can be suppressed in all log messages by setting the startup
 option `--log.ids false` when starting arangod or any of the client tools.
@@ -448,6 +443,6 @@ features and guarantees that this standard has in stock.
 To compile ArangoDB from source, a compiler that supports C++14 is now required.
 
 The bundled JEMalloc memory allocator used in ArangoDB release packages has been
-upgraded from version 5.0.1 to version 5.1.0.
+upgraded from version 5.0.1 to version 5.2.0.
 
 The bundled version of the RocksDB library has been upgraded from 5.16 to 6.0.
