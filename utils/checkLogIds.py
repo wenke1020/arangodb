@@ -186,6 +186,7 @@ def generate_ids_main(check_only, project_root, directories_to_include, director
                 if not is_good(status):
                     print("\nERROR") #required by oskar
                     print("There are duplicate logids in your branch!")
+                    print("Please run the script locally to find all occurrences of colliding ids.")
                     return 1
     print("Found {} unique Ids. Id check SUCCESSFUL!".format(len(id_database)))
     return 0
